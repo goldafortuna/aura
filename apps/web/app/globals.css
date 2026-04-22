@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 270 100% 95%;
+    --primary-foreground: 270 50% 20%;
+    --secondary: 210 100% 95%;
+    --secondary-foreground: 210 50% 20%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 270 100% 85%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 270 100% 85%;
+    --primary-foreground: 270 50% 10%;
+    --secondary: 210 100% 85%;
+    --secondary-foreground: 210 50% 10%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 270 100% 75%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+}
+
+@layer utilities {
+  .bento-grid {
+    @apply grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  .glass-effect {
+    @apply border border-white/20 bg-white/80 backdrop-blur-md;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
+  }
+
+  /* Landing page — background motion (ringan, tidak mengganggu) */
+  .animate-landing-blob-1 {
+    animation: landing-blob-drift-1 22s ease-in-out infinite;
+  }
+
+  .animate-landing-blob-2 {
+    animation: landing-blob-drift-2 26s ease-in-out infinite;
+    animation-delay: -8s;
+  }
+
+  .animate-landing-blob-3 {
+    animation: landing-blob-drift-3 18s ease-in-out infinite;
+    animation-delay: -4s;
+  }
+
+  .animate-landing-grid {
+    animation: landing-grid-pan 48s linear infinite;
+  }
+
+  .animate-landing-shimmer {
+    animation: landing-shimmer 8s ease-in-out infinite;
+  }
+}
+
+/* Keyframes di luar @layer agar kompatibel dengan build Tailwind */
+@keyframes landing-blob-drift-1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translate(-28px, 22px) scale(1.06);
+    opacity: 0.55;
+  }
+}
+
+@keyframes landing-blob-drift-2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(24px, -18px) scale(1.05);
+    opacity: 0.5;
+  }
+}
+
+@keyframes landing-blob-drift-3 {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+    opacity: 0.38;
+  }
+}
+
+@keyframes landing-grid-pan {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 48px 48px;
+  }
+}
+
+@keyframes landing-shimmer {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}

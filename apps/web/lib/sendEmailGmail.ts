@@ -1,0 +1,206 @@
+/**
+ * sendEmailGmail
+ * Mengirim email melalui Gmail SMTP menggunakan App Password.
+ *
+ * Prasyarat user:
+ *   1. Aktifkan 2-Step Verification di akun Google
+ *   2. Buka https://myaccount.google.com/apppasswords
+ *   3. Buat App Password baru (pilih "Mail" / "Other")
+ *   4. Simpan 16-digit App Password ke Pengaturan Aplikasi
+ */
+
+import nodemailer from 'nodemailer';
+
+export type CtaSummary = {
+  title: string;
+  action: string;
+  picName?: string | null;
+  unit?: string | null;
+  deadline?: string | null;
+  priority: 'low' | 'medium' | 'high';
+};
+
+export type NotulaEmailPayload = {
+  /** Konfigurasi pengirim */
+  from: {
+    name: string;
+    address: string;
+    appPassword: string;
+  };
+  /** Penerima — satu panggilan = satu penerima (atau array CC) */
+  to: string | string[];
+  subject: string;
+  /** Metadata notula */
+  notula: {
+    title: string;
+    meetingDate: string;
+    participantsCount?: number;
+  };
+  /** Pesan tambahan dari pengirim */
+  additionalMessage?: string;
+  /** CTA khusus untuk penerima ini */
+  ctas?: CtaSummary[];
+  /** URL download dokumen terkoreksi (opsional) */
+  downloadUrl?: string;
+};
+
+// ─── HTML Template ────────────────────────────────────────────────────────────
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function priorityBadge(p: 'low' | 'medium' | 'high') {
+  const map = {
+    high: { bg: '#fee2e2', text: '#b91c1c', label: 'Tinggi' },
+    medium: { bg: '#ffedd5', text: '#c2410c', label: 'Sedang' },
+    low: { bg: '#dcfce7', text: '#15803d', label: 'Rendah' },
+  };
+  const s = map[p];
+  return `<span style="background:${s.bg};color:${s.text};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">${s.label}</span>`;
+}
+
+function buildHtmlBody(payload: NotulaEmailPayload): string {
+  const { notula, additionalMessage, ctas, downloadUrl } = payload;
+
+  const ctaRows =
+    ctas && ctas.length > 0
+      ? ctas
+          .map(
+            (cta, i) => `
+        <tr style="border-bottom:1px solid #f3f4f6;">
+          <td style="padding:12px 16px;font-size:13px;color:#111827;">
+            <strong>${i + 1}. ${escapeHtml(cta.title)}</strong><br/>
+            <span style="color:#6b7280;">${escapeHtml(cta.action)}</span>
+          </td>
+          <td style="padding:12px 8px;font-size:12px;color:#374151;white-space:nowrap;">${escapeHtml(cta.unit ?? '—')}</td>
+          <td style="padding:12px 8px;font-size:12px;color:#374151;white-space:nowrap;">${escapeHtml(cta.picName ?? '—')}</td>
+          <td style="padding:12px 8px;font-size:12px;white-space:nowrap;">${escapeHtml(cta.deadline ?? '—')}</td>
+          <td style="padding:12px 8px;">${priorityBadge(cta.priority)}</td>
+        </tr>`,
+          )
+          .join('')
+      : `<tr><td colspan="5" style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">Tidak ada tindak lanjut untuk unit Anda pada rapat ini.</td></tr>`;
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Notula Rapat</title></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:680px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#7c3aed,#2563eb);padding:32px 40px;">
+      <p style="margin:0 0 4px;color:rgba(255,255,255,0.75);font-size:13px;text-transform:uppercase;letter-spacing:1px;">Notulen Rapat</p>
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;line-height:1.3;">${escapeHtml(notula.title)}</h1>
+      <p style="margin:12px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
+        📅 ${notula.meetingDate}
+        ${notula.participantsCount ? `&nbsp;·&nbsp; 👥 ${notula.participantsCount} peserta` : ''}
+      </p>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:32px 40px;">
+
+      ${
+        additionalMessage
+          ? `<div style="background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+              <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${escapeHtml(additionalMessage).replace(/\n/g, '<br/>')}</p>
+            </div>`
+          : ''
+      }
+
+      <h2 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#111827;">
+        📋 Tindak Lanjut (Call to Action)
+      </h2>
+      <p style="margin:0 0 16px;font-size:13px;color:#6b7280;">
+        Berikut tindak lanjut yang perlu ditindaklanjuti oleh unit Anda berdasarkan hasil rapat:
+      </p>
+
+      <div style="overflow-x:auto;border-radius:10px;border:1px solid #e5e7eb;">
+        <table style="width:100%;border-collapse:collapse;font-family:inherit;">
+          <thead>
+            <tr style="background:#f9fafb;">
+              <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;">Tindak Lanjut</th>
+              <th style="padding:10px 8px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;">Unit</th>
+              <th style="padding:10px 8px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;">PIC</th>
+              <th style="padding:10px 8px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;">Deadline</th>
+              <th style="padding:10px 8px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:1px solid #e5e7eb;">Prioritas</th>
+            </tr>
+          </thead>
+          <tbody>${ctaRows}</tbody>
+        </table>
+      </div>
+
+      ${
+        downloadUrl
+          ? `<div style="margin-top:24px;text-align:center;">
+              <a href="${downloadUrl}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:600;">
+                ⬇️ Unduh Dokumen Notula
+              </a>
+            </div>`
+          : ''
+      }
+
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:20px 40px;background:#f9fafb;border-top:1px solid #f3f4f6;">
+      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+        Email ini dikirim secara otomatis oleh Sistem Sekretariat. Harap tidak membalas email ini.<br/>
+        Jika ada pertanyaan, hubungi sekretariat langsung.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Send function ─────────────────────────────────────────────────────────────
+
+export async function sendNotulaEmail(payload: NotulaEmailPayload): Promise<void> {
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // Use STARTTLS
+    auth: {
+      user: payload.from.address,
+      pass: payload.from.appPassword,
+    },
+    tls: {
+      // Ensure secure connection with proper certificate validation
+      rejectUnauthorized: true, // Enable certificate validation
+    },
+  });
+
+  const html = buildHtmlBody(payload);
+  const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
+
+  await transporter.sendMail({
+    from: `"${payload.from.name}" <${payload.from.address}>`,
+    to: toAddresses.join(', '),
+    subject: payload.subject,
+    html,
+    text: `Notula Rapat: ${payload.notula.title}\nTanggal: ${payload.notula.meetingDate}\n\n${payload.additionalMessage ?? ''}`,
+  });
+}
+
+/** Test koneksi SMTP tanpa mengirim email sungguhan */
+export async function verifyGmailConfig(gmailAddress: string, appPassword: string): Promise<void> {
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: gmailAddress, pass: appPassword },
+    tls: {
+      // Ensure secure connection with proper certificate validation
+      rejectUnauthorized: true, // Enable certificate validation
+    },
+  });
+  await transporter.verify();
+}
