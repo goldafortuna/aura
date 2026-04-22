@@ -216,12 +216,12 @@ export default function Home() {
           <Link href="/privacy-policy" className="text-gray-500 hover:text-violet-600">
             Privacy Policy
           </Link>
-          <span className="text-gray-300">•</span>
+          <span className="text-gray-300">ï¿½</span>
           <Link href="/terms-of-service" className="text-gray-500 hover:text-violet-600">
             Terms of Service
           </Link>
         </div>
-        © 2026 AURA-AI Powered Secretary Asistant
+        ï¿½ 2026 AURA-AI Powered Secretary Asistant
       </footer>
     </main>
   );
