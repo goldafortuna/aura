@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import {
   FileText,
   ClipboardList,
@@ -45,7 +45,7 @@ const navItemClass = (isActive: boolean) =>
       : 'text-gray-600 hover:bg-gray-100'
   }`;
 
-export const Sidebar: React.FC<SidebarProps> = ({
+const SidebarContent: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   isOpen = false,
@@ -178,5 +178,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
       </motion.aside>
     </>
+  );
+};
+
+export const Sidebar: React.FC<SidebarProps> = (props) => {
+  return (
+    <Suspense
+      fallback={
+        <aside className="fixed inset-y-0 left-0 z-50 hidden h-screen w-64 border-r border-gray-200 bg-gradient-to-b from-primary/10 to-secondary/10 md:block" />
+      }
+    >
+      <SidebarContent {...props} />
+    </Suspense>
   );
 };
