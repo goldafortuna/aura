@@ -5,6 +5,8 @@ import { getDevBypassWarningContext, isDevBypassAllowed, isDevBypassRequested } 
 
 const isPublicRoute = createRouteMatcher([
   '/',
+  '/privacy-policy(.*)',
+  '/terms-of-service(.*)',
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/google/calendar/oauth/callback',
