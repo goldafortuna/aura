@@ -27,7 +27,7 @@ export async function requireDbUser(_c: Context) {
     console.warn('[DEV_BYPASS_AUTH] ignored because bypass is only allowed in local development.', getDevBypassWarningContext());
   }
 
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) {
     if (process.env.NODE_ENV !== 'production') console.debug('[requireDbUser] no userId from Clerk auth()');
     return null;

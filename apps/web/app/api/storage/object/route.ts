@@ -15,7 +15,7 @@ async function resolveDbUser() {
   const bypassUser = await resolveDevBypassDbUser();
   if (bypassUser) return bypassUser;
 
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const [dbUser] = await db.select().from(users).where(eq(users.clerkUserId, userId)).limit(1);

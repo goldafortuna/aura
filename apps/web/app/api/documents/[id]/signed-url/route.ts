@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   const bypassUser = await resolveDevBypassDbUser();
-  const userId = bypassUser ? null : auth().userId;
+  const userId = bypassUser ? null : (await auth()).userId;
   const [dbUser] = bypassUser
     ? [bypassUser]
     : userId

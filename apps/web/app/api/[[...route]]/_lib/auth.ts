@@ -4,7 +4,7 @@ import { db } from '../../../../db';
 import { users } from '../../../../db/schema';
 
 export async function requireDbUser() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const clerkUser = await currentUser();
