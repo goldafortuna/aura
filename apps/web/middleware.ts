@@ -1,18 +1,16 @@
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getDevBypassWarningContext, isDevBypassAllowed, isDevBypassRequested } from './lib/devBypass';
 
-const PUBLIC_PATH_PREFIXES = ['/', '/sign-in', '/sign-up', '/api/google/calendar/oauth/callback'];
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/google/calendar/oauth/callback',
+]);
 
-function isPublicRoute(pathname: string) {
-  return PUBLIC_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-}
-
-function hasClerkSessionCookie(req: NextRequest) {
-  return Boolean(req.cookies.get('__session') || req.cookies.get('__client_uat'));
-}
-
-export default function middleware(req: NextRequest) {
+export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (isDevBypassAllowed()) {
     return NextResponse.next();
   }
@@ -24,18 +22,13 @@ export default function middleware(req: NextRequest) {
     );
   }
 
-  if (!isPublicRoute(req.nextUrl.pathname) && !hasClerkSessionCookie(req)) {
-    if (req.nextUrl.pathname.startsWith('/api/')) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const signInUrl = new URL('/sign-in', req.url);
-    signInUrl.searchParams.set('redirect_url', req.url);
-    return NextResponse.redirect(signInUrl);
+  if (!isPublicRoute(req)) {
+    const authState = await auth();
+    await authState.protect();
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [
