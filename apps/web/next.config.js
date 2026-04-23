@@ -2,12 +2,12 @@
 const isDevelopment = process.env.NODE_ENV === 'development';
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${isDevelopment ? "'unsafe-eval' " : ''}https://*.clerk.com https://*.clerk.accounts.dev https://js.clerk.dev`,
+  `script-src 'self' 'unsafe-inline' ${isDevelopment ? "'unsafe-eval' " : ''}https://*.clerk.com https://*.clerk.accounts.dev https://js.clerk.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev",
   "font-src 'self' data: https:",
-  `connect-src 'self' ${isDevelopment ? 'ws: wss: ' : ''}https:`,
-  "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev",
+  `connect-src 'self' ${isDevelopment ? 'ws: wss: ' : ''}https: https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
+  "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
