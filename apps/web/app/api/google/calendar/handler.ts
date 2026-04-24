@@ -130,6 +130,27 @@ const eventReminderSchema = z.object({
   tanggalShort: z.string(),
 });
 
+const calendarEventBriefSchema = z.object({
+  id: z.string().optional().default(''),
+  googleEventId: z.string().optional().default(''),
+  calendarId: z.string().optional().default(''),
+  calendarSummary: z.string().optional().default(''),
+  title: z.string().min(1),
+  timeRange: z.string(),
+  location: z.string().optional().default(''),
+  description: z.string().optional().default(''),
+  isAllDay: z.boolean().optional().default(false),
+  startMs: z.number(),
+});
+
+const renderDateReminderSchema = z.object({
+  type: z.enum(['hari_ini', 'besok']),
+  hariLabel: z.string().min(1),
+  tanggalShort: z.string().min(1),
+  dateIso: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  events: z.array(calendarEventBriefSchema).max(100),
+});
+
 async function refreshGoogleConnectionAccessToken(
   userId: string,
   row: typeof googleCalendarConnections.$inferSelect,
@@ -604,6 +625,47 @@ app.get('/today-reminder', readHeavyExternalApiRateLimit, async (c) => {
       'google-calendar/today-reminder',
       err,
       'Gagal memuat agenda hari ini. Silakan coba lagi.',
+    );
+  }
+});
+
+app.post('/render-date-reminder', externalApiRateLimit, async (c) => {
+  const dbUser = await requireDbUser(c);
+  if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+
+  try {
+    const body = await c.req.json();
+    const parsed = renderDateReminderSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
+    }
+
+    const [templateRow] = await db
+      .select()
+      .from(waReminderTemplates)
+      .where(
+        and(eq(waReminderTemplates.userId, dbUser.id), eq(waReminderTemplates.type, parsed.data.type)),
+      )
+      .limit(1);
+    const templateContent =
+      templateRow?.content ??
+      (parsed.data.type === 'hari_ini' ? WA_HARI_INI_DEFAULT_TEMPLATE : WA_BESOK_DEFAULT_TEMPLATE);
+
+    const text = renderDateReminderText({
+      templateContent,
+      hariLabel: parsed.data.hariLabel,
+      tanggalShort: parsed.data.tanggalShort,
+      events: parsed.data.events,
+      dateUtcMidnight: new Date(`${parsed.data.dateIso}T00:00:00.000Z`),
+    });
+
+    return c.json({ data: { text } });
+  } catch (err) {
+    return internalServerError(
+      c,
+      'google-calendar/render-date-reminder',
+      err,
+      'Gagal membuat reminder agenda. Silakan coba lagi.',
     );
   }
 });
