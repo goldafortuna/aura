@@ -32,12 +32,12 @@ interface SidebarProps {
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'documents', label: 'Review Dokumen', icon: FileText },
-  { id: 'minutes', label: 'Notula Rapat', icon: ClipboardList },
-  { id: 'planner', label: 'Agenda Pimpinan', icon: Calendar },
-  { id: 'reminders', label: 'WhatsApp Reminder', icon: MessageSquare },
+  { id: 'minutes', label: 'Notula', icon: ClipboardList },
+  { id: 'planner', label: 'Agenda', icon: Calendar },
   { id: 'tasks', label: 'Manajemen Tugas', icon: CheckSquare },
   { id: 'cta-dashboard', label: 'Monitoring TL', icon: ListChecks },
   { id: 'academy', label: 'Academy', icon: BookOpen },
+  { id: 'reminders', label: 'WA Template', icon: MessageSquare },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; icon: React.ElementType; href?: string }>;
 
 const navItemClass = (isActive: boolean) =>
