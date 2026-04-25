@@ -60,9 +60,25 @@ test.describe('Meeting Minutes E2E', () => {
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await expect(page.getByText('1 tindak lanjut').first()).toBeVisible({ timeout: 20_000 });
 
-    await page.getByRole('button', { name: 'Lihat Detail' }).first().click();
-    await expect(page.getByText('Temuan (1)')).toBeVisible();
-    await expect(page.getByText('Tindak Lanjut (1)')).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const res = await request.get(`${baseURL}/api/meeting-minutes`);
+          const json = (await res.json()) as { data: Array<{ title: string; status: string }> };
+          return json.data.find((minute) => minute.title === title)?.status;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe('reviewed');
+
+    await page.reload();
+    const minuteRow = page
+      .getByRole('heading', { name: title, exact: true })
+      .locator('xpath=ancestor::div[contains(@class, "p-5")][1]');
+    await minuteRow.getByRole('button', { name: 'Lihat Detail' }).click();
+    await expect(page.getByRole('button', { name: /Pilih Semua/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Temuan\s*\(1\)/)).toBeVisible();
+    await expect(page.getByText(/Tindak Lanjut\s*\(1\)/)).toBeVisible();
     await expect(page.getByText('rapim')).toBeVisible();
 
     await page.getByRole('button', { name: /Pilih Semua/i }).click();

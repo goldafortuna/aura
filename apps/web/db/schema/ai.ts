@@ -9,8 +9,7 @@ export const aiProviderConfigs = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
-      .notNull(),
+      .references(() => users.id, { onDelete: 'cascade' }),
     provider: text('provider').notNull(), // 'deepseek' | 'openai' | 'anthropic' (logical label)
     kind: text('kind').notNull(), // 'openai_compatible' | 'anthropic'
     displayName: text('display_name').notNull(),
@@ -37,8 +36,7 @@ export const aiPromptSettings = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
-      .notNull(),
+      .references(() => users.id, { onDelete: 'cascade' }),
     kind: text('kind').notNull(),
     systemPrompt: text('system_prompt').notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

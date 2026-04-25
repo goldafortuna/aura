@@ -15,6 +15,9 @@ import documentsUploadRoute from '../uploads/documents/handler';
 import meetingMinutesUploadRoute from '../uploads/meeting-minutes/handler';
 import academyRoute from '../academy/handler';
 import meRoute from '../me/handler';
+import adminUsersRoute from '../admin/users/handler';
+import timeSavingsAnalyticsRoute from '../analytics/time-savings/handler';
+import adminTimeSavingsSettingsRoute from '../admin/time-savings-settings/handler';
 
 const app = new Hono().basePath('/api');
 
@@ -32,6 +35,9 @@ app.route('/uploads/documents', documentsUploadRoute);
 app.route('/uploads/meeting-minutes', meetingMinutesUploadRoute);
 app.route('/academy', academyRoute);
 app.route('/me', meRoute);
+app.route('/admin/users', adminUsersRoute);
+app.route('/analytics/time-savings', timeSavingsAnalyticsRoute);
+app.route('/admin/time-savings-settings', adminTimeSavingsSettingsRoute);
 
 export const GET = handle(app);
 export const POST = handle(app);

@@ -1,18 +1,14 @@
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { resolveDevBypassDbUser } from '../../../../lib/devDbUser';
 import { getObjectStorageDebugInfo } from '../../../../lib/objectStorage';
+import { requireApprovedUser } from '../../../../lib/middleware/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const devUser = await resolveDevBypassDbUser();
-  if (!devUser) {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const dbUser = await requireApprovedUser();
+  if (!dbUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const storage = getObjectStorageDebugInfo();

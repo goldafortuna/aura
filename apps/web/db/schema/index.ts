@@ -8,3 +8,4 @@ export * from './googleCalendarConnections';
 export * from './waReminderTemplates';
 export * from './unitKerja';
 export * from './academy';
+export * from './timeSavings';

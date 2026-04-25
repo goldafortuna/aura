@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { requireDbUser } from '../_lib/auth';
+import { requireApprovedUser } from '../_lib/auth';
 
 const router = new Hono();
 
@@ -8,7 +8,7 @@ router.get('/health', (c) => {
 });
 
 router.get('/me', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   return c.json({ user: dbUser });
 });

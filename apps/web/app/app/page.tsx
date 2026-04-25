@@ -1,11 +1,12 @@
-﻿'use client';
+'use client';
 
 import { Suspense } from 'react';
 import AppShell from './AppShell';
+import { AppLayoutSkeleton } from '../../components/LoadingSkeleton';
 
 export default function AppPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center text-gray-500">Memuat...</div>}>
+    <Suspense fallback={<AppLayoutSkeleton variant="dashboard" />}>
       <AppShell />
     </Suspense>
   );

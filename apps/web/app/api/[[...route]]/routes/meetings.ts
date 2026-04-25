@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../../../db';
 import { ctaItems, emailConfigs, meetingMinutes, unitKerja } from '../../../../db/schema';
@@ -9,7 +9,7 @@ import { applyFindingsToDocument } from '../../../../lib/applyFindingsToDocument
 import { sendNotulaEmail } from '../../../../lib/sendEmailGmail';
 import { decrypt } from '../../../../lib/encryption';
 import { downloadObject, uploadObject } from '../../../../lib/objectStorage';
-import { requireDbUser } from '../_lib/auth';
+import { requireSecretary } from '../_lib/auth';
 import { parseIsoDateOrNull, loadMinutesReviewSystemPrompt, loadActiveAiCallConfig } from '../_lib/helpers';
 import { internalServerError } from '../../../../lib/httpErrors';
 import { validateUserScopedStoragePath } from '../../../../lib/storageAccess';
@@ -75,7 +75,7 @@ function parseJsonArray<T>(value: unknown): T[] {
 }
 
 meetingsRouter.get('/', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const rows = await db.select().from(meetingMinutes).where(eq(meetingMinutes.userId, dbUser.id)).orderBy(desc(meetingMinutes.createdAt));
@@ -83,7 +83,7 @@ meetingsRouter.get('/', async (c) => {
 });
 
 meetingsRouter.post('/', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
@@ -110,7 +110,7 @@ meetingsRouter.post('/', async (c) => {
 });
 
 meetingsRouter.get('/:id', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -120,7 +120,7 @@ meetingsRouter.get('/:id', async (c) => {
 });
 
 meetingsRouter.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -140,7 +140,7 @@ meetingsRouter.patch('/:id', async (c) => {
 });
 
 meetingsRouter.post('/:id/analyze', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -212,7 +212,7 @@ meetingsRouter.post('/:id/analyze', async (c) => {
 });
 
 meetingsRouter.post('/:id/approve-findings', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -280,7 +280,7 @@ meetingsRouter.post('/:id/approve-findings', async (c) => {
 });
 
 meetingsRouter.get('/:id/download-corrected', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -314,7 +314,7 @@ meetingsRouter.get('/:id/download-corrected', async (c) => {
 });
 
 meetingsRouter.post('/:id/distribute', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -327,7 +327,7 @@ meetingsRouter.post('/:id/distribute', async (c) => {
 
   const [emailCfg] = await db.select().from(emailConfigs).where(eq(emailConfigs.userId, dbUser.id)).limit(1);
   const allCtas = await db.select().from(ctaItems).where(eq(ctaItems.meetingMinuteId, id));
-  const unitKerjaRows = await db.select().from(unitKerja).where(eq(unitKerja.userId, dbUser.id));
+  const unitKerjaRows = await db.select().from(unitKerja).where(isNull(unitKerja.userId));
 
   const { recipients, subject, message } = parsed.data;
   const sentTo: string[] = [];
@@ -396,7 +396,7 @@ meetingsRouter.post('/:id/distribute', async (c) => {
 });
 
 meetingsRouter.get('/:id/ctas', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -412,7 +412,7 @@ meetingsRouter.get('/:id/ctas', async (c) => {
 export const ctasRouter = new Hono();
 
 ctasRouter.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -438,7 +438,7 @@ ctasRouter.patch('/:id', async (c) => {
 });
 
 ctasRouter.get('/', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const { unit, status, priority, meetingDateFrom, meetingDateTo } = c.req.query();

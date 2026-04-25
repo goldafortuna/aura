@@ -12,6 +12,7 @@ import {
   LogOut,
   BookOpen,
   ListChecks,
+  GraduationCap,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SignOutButton } from '@clerk/nextjs';
@@ -25,6 +26,7 @@ interface SidebarProps {
   onClose?: () => void;
   /** `spa` = tab state di App; `links` = navigasi penuh ke `/app?tab=` (mis. dari layout /settings). */
   navMode?: 'spa' | 'links';
+  roles?: string[];
 }
 
 const menuItems = [
@@ -51,6 +53,7 @@ const SidebarContent: React.FC<SidebarProps> = ({
   isOpen = false,
   onClose,
   navMode = 'spa',
+  roles = ['secretary'],
 }) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -58,6 +61,8 @@ const SidebarContent: React.FC<SidebarProps> = ({
 
   const appTabFromUrl = pathname === '/app' ? (searchParams?.get('tab') ?? 'dashboard') : '';
   const settingsActive = pathname?.startsWith('/settings') ?? false;
+  const canUseSecretaryFeatures = roles.includes('secretary');
+  const canUseSystemSettings = roles.includes('super_admin');
 
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 768px)');
@@ -91,7 +96,7 @@ const SidebarContent: React.FC<SidebarProps> = ({
       </div>
 
       <nav className="flex-1 space-y-2 p-4">
-        {menuItems.map((item) => {
+        {canUseSecretaryFeatures && menuItems.map((item) => {
           const Icon = item.icon;
           const hasCustomHref = 'href' in item && !!item.href;
 
@@ -153,20 +158,38 @@ const SidebarContent: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="space-y-2 border-t border-gray-200 p-4">
-        <Link
-          href="/settings"
-          className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition-colors ${
-            settingsActive
-              ? 'bg-gradient-to-r from-primary/20 to-secondary/20 text-primary-800 shadow-sm'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-          onClick={() => onClose?.()}
-        >
-          <span className="flex items-center gap-3">
-            <Settings className={`h-5 w-5 ${settingsActive ? 'text-primary-700' : ''}`} />
-            <span>Pengaturan</span>
-          </span>
-        </Link>
+        {canUseSystemSettings ? (
+          <>
+            <Link
+              href="/academy-admin"
+              className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition-colors ${
+                (pathname?.startsWith('/academy-admin') ?? false)
+                  ? 'bg-gradient-to-r from-primary/20 to-secondary/20 text-primary-800 shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              onClick={() => onClose?.()}
+            >
+              <span className="flex items-center gap-3">
+                <GraduationCap className={`h-5 w-5 ${(pathname?.startsWith('/academy-admin') ?? false) ? 'text-primary-700' : ''}`} />
+                <span>Manajemen Academy</span>
+              </span>
+            </Link>
+            <Link
+              href="/settings"
+              className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition-colors ${
+                settingsActive
+                  ? 'bg-gradient-to-r from-primary/20 to-secondary/20 text-primary-800 shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              onClick={() => onClose?.()}
+            >
+              <span className="flex items-center gap-3">
+                <Settings className={`h-5 w-5 ${settingsActive ? 'text-primary-700' : ''}`} />
+                <span>Pengaturan Sistem</span>
+              </span>
+            </Link>
+          </>
+        ) : null}
         <SignOutButton redirectUrl="/">
           <button className="w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50">
             <span className="flex items-center gap-3">

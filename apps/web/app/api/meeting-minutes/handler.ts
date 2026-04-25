@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../../../db';
 import { meetingMinutes, ctaItems } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireSecretary } from '../../../lib/middleware/auth';
 import { extractDocumentText } from '../../../lib/extractDocumentText';
 import { reviewMeetingMinutesText } from '../../../lib/aiMinutesReview';
 import { applyFindingsToDocument } from '../../../lib/applyFindingsToDocument';
@@ -18,6 +18,7 @@ import { decrypt } from '../../../lib/encryption';
 import { createRateLimitMiddleware } from '../../../lib/middleware/rateLimit';
 import type { AiCallConfig } from '../../../lib/aiClient';
 import { validateUserScopedStoragePath } from '../../../lib/storageAccess';
+import { automationMinutesFromStartedAt, recordMinutesCtaSavings } from '../../../lib/timeSavings';
 
 const app = new Hono();
 
@@ -73,7 +74,7 @@ const distributeSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const rows = await db
@@ -86,7 +87,7 @@ app.get('/', async (c) => {
 });
 
 app.post('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
@@ -116,7 +117,7 @@ app.post('/', async (c) => {
 });
 
 app.get('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -131,7 +132,7 @@ app.get('/:id', async (c) => {
 });
 
 app.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -158,10 +159,11 @@ app.patch('/:id', async (c) => {
 
 // Apply rate limiting to AI analysis endpoints
 app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
+  const startedAtMs = Date.now();
 
   try {
     const [minute] = await db
@@ -205,7 +207,7 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
     const unitKerjaRows = await db
       .select()
       .from(unitKerja)
-      .where(eq(unitKerja.userId, dbUser.id));
+      .where(isNull(unitKerja.userId));
 
     const review = await reviewMeetingMinutesText({
       text,
@@ -268,6 +270,16 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       .where(and(eq(meetingMinutes.id, id), eq(meetingMinutes.userId, dbUser.id)))
       .returning();
 
+    await recordMinutesCtaSavings({
+      userId: dbUser.id,
+      meetingMinuteId: id,
+      typoCount,
+      ambiguousCount,
+      ctaCount,
+      actualAutomationMinutes: automationMinutesFromStartedAt(startedAtMs),
+      title: minute.title,
+    });
+
     return c.json({ data: updated });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -284,7 +296,7 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
 });
 
 app.post('/:id/approve-findings', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -377,7 +389,7 @@ app.post('/:id/approve-findings', async (c) => {
 });
 
 app.get('/:id/download-corrected', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -407,7 +419,7 @@ app.get('/:id/download-corrected', async (c) => {
 });
 
 app.post('/:id/distribute', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -440,7 +452,7 @@ app.post('/:id/distribute', async (c) => {
   const unitKerjaRows = await db
     .select()
     .from(unitKerja)
-    .where(eq(unitKerja.userId, dbUser.id));
+    .where(isNull(unitKerja.userId));
 
   const { recipients, subject, message } = parsed.data;
   const sentTo: string[] = [];
@@ -533,7 +545,7 @@ app.post('/:id/distribute', async (c) => {
 });
 
 app.get('/:id/ctas', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');

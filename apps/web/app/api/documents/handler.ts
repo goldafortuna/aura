@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../../db';
 import { documents } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireSecretary } from '../../../lib/middleware/auth';
 import { extractDocumentText } from '../../../lib/extractDocumentText';
 import { reviewOfficialDocumentText } from '../../../lib/aiDocumentReview';
 import { downloadObject, removeObjects } from '../../../lib/objectStorage';
@@ -12,6 +12,7 @@ import type { AiCallConfig } from '../../../lib/aiClient';
 import { createRateLimitMiddleware } from '../../../lib/middleware/rateLimit';
 import { validateUserScopedStoragePath } from '../../../lib/storageAccess';
 import { internalServerError } from '../../../lib/httpErrors';
+import { automationMinutesFromStartedAt, recordDocumentReviewSavings } from '../../../lib/timeSavings';
 
 const app = new Hono();
 
@@ -38,7 +39,7 @@ const updateDocumentSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   try {
@@ -55,7 +56,7 @@ app.get('/', async (c) => {
 });
 
 app.post('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   try {
@@ -91,7 +92,7 @@ app.post('/', async (c) => {
 });
 
 app.get('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -105,7 +106,7 @@ app.get('/:id', async (c) => {
 });
 
 app.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -135,7 +136,7 @@ app.patch('/:id', async (c) => {
 });
 
 app.delete('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -165,10 +166,11 @@ app.delete('/:id', async (c) => {
 
 // Apply rate limiting to AI analysis endpoints
 app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
+  const startedAtMs = Date.now();
 
   try {
     const [doc] = await db
@@ -230,6 +232,15 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       })
       .where(and(eq(documents.id, id), eq(documents.userId, dbUser.id)))
       .returning();
+
+    await recordDocumentReviewSavings({
+      userId: dbUser.id,
+      documentId: id,
+      typoCount,
+      ambiguousCount,
+      actualAutomationMinutes: automationMinutesFromStartedAt(startedAtMs),
+      filename: doc.filename,
+    });
 
     return c.json({ data: updated });
   } catch (err) {

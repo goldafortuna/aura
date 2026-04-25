@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3100';
+const webServerPort = new URL(baseURL).port || '3100';
 
 export default defineConfig({
   testDir: './e2e',
@@ -28,11 +29,13 @@ export default defineConfig({
       ...process.env,
       DEV_BYPASS_AUTH: '1',
       DEV_BYPASS_EMAIL: process.env.DEV_BYPASS_EMAIL || 'playwright@local.test',
+      DEV_BYPASS_ROLES: process.env.DEV_BYPASS_ROLES || 'secretary,super_admin',
+      DEV_BYPASS_APPROVAL_STATUS: process.env.DEV_BYPASS_APPROVAL_STATUS || 'approved',
       E2E_MOCK_AI: '1',
       E2E_MOCK_GOOGLE_CALENDAR: '1',
       OBJECT_STORAGE_PROVIDER: process.env.OBJECT_STORAGE_PROVIDER || 'local',
       LOCAL_OBJECT_STORAGE_DIR: process.env.LOCAL_OBJECT_STORAGE_DIR || '.local-object-storage',
-      PORT: '3100',
+      PORT: webServerPort,
     },
   },
   projects: [

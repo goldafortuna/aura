@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../../../db';
 import { aiMessageBatches, aiProviderConfigs, aiPromptSettings, documents } from '../../../../db/schema';
@@ -12,7 +12,7 @@ import {
   anthropicDownloadBatchResults,
   anthropicRetrieveMessageBatch,
 } from '../../../../lib/anthropicBatches';
-import { requireDbUser } from '../_lib/auth';
+import { isSecretary, isSuperAdmin, requireApprovedUser, requireSuperAdmin } from '../_lib/auth';
 import { maskApiKey, isMaskedApiKeyInput, loadActiveAiCallConfig, parseAiJsonRelaxed } from '../_lib/helpers';
 
 const upsertAiProviderSchema = z.object({
@@ -30,17 +30,33 @@ const upsertAiPromptsSchema = z.object({
 
 const router = new Hono();
 
+const GLOBAL_PROVIDERS = ['deepseek', 'openai'] as const;
+const USER_PROVIDERS = ['anthropic'] as const;
+
+function isGlobalProvider(provider: string): provider is (typeof GLOBAL_PROVIDERS)[number] {
+  return GLOBAL_PROVIDERS.includes(provider as (typeof GLOBAL_PROVIDERS)[number]);
+}
+
+function isUserProvider(provider: string): provider is (typeof USER_PROVIDERS)[number] {
+  return USER_PROVIDERS.includes(provider as (typeof USER_PROVIDERS)[number]);
+}
+
 router.get('/providers', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
-  const rows = await db.select().from(aiProviderConfigs).where(eq(aiProviderConfigs.userId, dbUser.id));
-  const byProvider = new Map(rows.map((r) => [r.provider, r]));
+  const [globalRows, userRows] = await Promise.all([
+    db.select().from(aiProviderConfigs).where(and(isNull(aiProviderConfigs.userId), inArray(aiProviderConfigs.provider, [...GLOBAL_PROVIDERS]))),
+    db.select().from(aiProviderConfigs).where(and(eq(aiProviderConfigs.userId, dbUser.id), inArray(aiProviderConfigs.provider, [...USER_PROVIDERS]))),
+  ]);
+  const byProvider = new Map([...globalRows, ...userRows].map((r) => [r.provider, r]));
+  const canManageSystem = isSuperAdmin(dbUser);
+  const canManagePersonal = isSecretary(dbUser);
 
   const templates = [
-    { provider: 'deepseek', displayName: 'DeepSeek', kind: 'openai_compatible' as const, defaultBaseUrl: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
-    { provider: 'openai', displayName: 'OpenAI (GPT)', kind: 'openai_compatible' as const, defaultBaseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o-mini' },
-    { provider: 'anthropic', displayName: 'Anthropic (Claude)', kind: 'anthropic' as const, defaultBaseUrl: 'https://api.anthropic.com', defaultModel: 'claude-3-5-sonnet-20241022' },
+    { provider: 'deepseek', displayName: 'DeepSeek', kind: 'openai_compatible' as const, defaultBaseUrl: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat', scope: 'global' as const, canEdit: canManageSystem },
+    { provider: 'openai', displayName: 'OpenAI (GPT)', kind: 'openai_compatible' as const, defaultBaseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o-mini', scope: 'global' as const, canEdit: canManageSystem },
+    { provider: 'anthropic', displayName: 'Anthropic (Claude)', kind: 'anthropic' as const, defaultBaseUrl: 'https://api.anthropic.com', defaultModel: 'claude-3-5-sonnet-20241022', scope: 'user' as const, canEdit: canManagePersonal },
   ];
 
   const data = templates.map((t) => {
@@ -54,6 +70,8 @@ router.get('/providers', async (c) => {
       isActive: row?.isActive ?? false,
       hasApiKey: Boolean(row?.apiKey),
       apiKeyPreview: row?.apiKey ? maskApiKey(decrypt(row.apiKey)) : '',
+      scope: t.scope,
+      canEdit: t.canEdit,
     };
   });
 
@@ -61,18 +79,29 @@ router.get('/providers', async (c) => {
 });
 
 router.put('/providers/:provider', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const provider = c.req.param('provider');
+  const isGlobal = isGlobalProvider(provider);
+  const isPersonal = isUserProvider(provider);
+  if (!isGlobal && !isPersonal) return c.json({ error: 'Provider tidak dikenal.' }, 400);
+  if (isGlobal && !isSuperAdmin(dbUser)) return c.json({ error: 'Hanya Super Admin yang dapat mengatur provider default sistem.' }, 403);
+  if (isPersonal && !isSecretary(dbUser)) return c.json({ error: 'Hanya Secretary yang dapat mengatur provider personal.' }, 403);
+
   const body = await c.req.json();
   const parsed = upsertAiProviderSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
+  if (isGlobal && parsed.data.kind !== 'openai_compatible') return c.json({ error: 'DeepSeek/GPT harus memakai transport OpenAI-compatible.' }, 400);
+  if (isPersonal && parsed.data.kind !== 'anthropic') return c.json({ error: 'Provider personal Secretary saat ini hanya Claude/Anthropic.' }, 400);
+
+  const ownerWhere = isGlobal ? isNull(aiProviderConfigs.userId) : eq(aiProviderConfigs.userId, dbUser.id);
+  const ownerValue = isGlobal ? null : dbUser.id;
 
   const [existing] = await db
     .select()
     .from(aiProviderConfigs)
-    .where(and(eq(aiProviderConfigs.userId, dbUser.id), eq(aiProviderConfigs.provider, provider)))
+    .where(and(ownerWhere, eq(aiProviderConfigs.provider, provider)))
     .limit(1);
 
   const incomingKey = parsed.data.apiKey?.trim() ?? '';
@@ -83,24 +112,14 @@ router.put('/providers/:provider', async (c) => {
 
   const nextKey = shouldKeepKey ? existing!.apiKey : encrypt(incomingKey);
 
-  const [saved] = await db
-    .insert(aiProviderConfigs)
-    .values({
-      userId: dbUser.id,
-      provider,
-      kind: parsed.data.kind,
-      displayName: parsed.data.displayName,
-      apiKey: nextKey,
-      baseUrl: parsed.data.baseUrl ?? null,
-      model: parsed.data.model,
-      isActive: existing?.isActive ?? false,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [aiProviderConfigs.userId, aiProviderConfigs.provider],
-      set: { kind: parsed.data.kind, displayName: parsed.data.displayName, apiKey: nextKey, baseUrl: parsed.data.baseUrl ?? null, model: parsed.data.model, updatedAt: new Date() },
-    })
-    .returning();
+  const [saved] = existing
+    ? await db.update(aiProviderConfigs)
+      .set({ kind: parsed.data.kind, displayName: parsed.data.displayName, apiKey: nextKey, baseUrl: parsed.data.baseUrl ?? null, model: parsed.data.model, updatedAt: new Date() })
+      .where(eq(aiProviderConfigs.id, existing.id))
+      .returning()
+    : await db.insert(aiProviderConfigs)
+      .values({ userId: ownerValue, provider, kind: parsed.data.kind, displayName: parsed.data.displayName, apiKey: nextKey, baseUrl: parsed.data.baseUrl ?? null, model: parsed.data.model, isActive: false, updatedAt: new Date() })
+      .returning();
 
   return c.json({
     data: {
@@ -112,39 +131,52 @@ router.put('/providers/:provider', async (c) => {
       isActive: saved.isActive,
       hasApiKey: Boolean(saved.apiKey),
       apiKeyPreview: saved.apiKey ? maskApiKey(decrypt(saved.apiKey)) : '',
+      scope: isGlobal ? 'global' : 'user',
+      canEdit: true,
     },
   });
 });
 
 router.post('/providers/:provider/activate', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const provider = c.req.param('provider');
+  const isGlobal = isGlobalProvider(provider);
+  const isPersonal = isUserProvider(provider);
+  if (!isGlobal && !isPersonal) return c.json({ error: 'Provider tidak dikenal.' }, 400);
+  if (isGlobal && !isSuperAdmin(dbUser)) return c.json({ error: 'Hanya Super Admin yang dapat mengaktifkan provider default sistem.' }, 403);
+  if (isPersonal && !isSecretary(dbUser)) return c.json({ error: 'Hanya Secretary yang dapat mengaktifkan provider personal.' }, 403);
+  const ownerWhere = isGlobal ? isNull(aiProviderConfigs.userId) : eq(aiProviderConfigs.userId, dbUser.id);
+
   const [target] = await db
     .select()
     .from(aiProviderConfigs)
-    .where(and(eq(aiProviderConfigs.userId, dbUser.id), eq(aiProviderConfigs.provider, provider)))
+    .where(and(ownerWhere, eq(aiProviderConfigs.provider, provider)))
     .limit(1);
 
   if (!target?.apiKey) return c.json({ error: 'Provider belum disimpan / API key belum diisi.' }, 400);
 
-  await db.update(aiProviderConfigs).set({ isActive: false, updatedAt: new Date() }).where(eq(aiProviderConfigs.userId, dbUser.id));
+  await db.update(aiProviderConfigs).set({ isActive: false, updatedAt: new Date() }).where(
+    isGlobal
+      ? and(isNull(aiProviderConfigs.userId), inArray(aiProviderConfigs.provider, [...GLOBAL_PROVIDERS]))
+      : and(eq(aiProviderConfigs.userId, dbUser.id), inArray(aiProviderConfigs.provider, [...USER_PROVIDERS])),
+  );
 
   const [activated] = await db
     .update(aiProviderConfigs)
     .set({ isActive: true, updatedAt: new Date() })
-    .where(and(eq(aiProviderConfigs.userId, dbUser.id), eq(aiProviderConfigs.provider, provider)))
+    .where(and(ownerWhere, eq(aiProviderConfigs.provider, provider)))
     .returning();
 
   return c.json({ data: { provider: activated.provider, isActive: activated.isActive } });
 });
 
 router.get('/prompts', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
-  const rows = await db.select().from(aiPromptSettings).where(eq(aiPromptSettings.userId, dbUser.id));
+  const rows = await db.select().from(aiPromptSettings).where(isNull(aiPromptSettings.userId));
   const byKind = new Map(rows.map((r) => [r.kind, r.systemPrompt]));
 
   return c.json({
@@ -156,7 +188,7 @@ router.get('/prompts', async (c) => {
 });
 
 router.put('/prompts', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireSuperAdmin();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
@@ -164,19 +196,23 @@ router.put('/prompts', async (c) => {
   if (!parsed.success) return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
 
   const now = new Date();
-  await db.insert(aiPromptSettings)
-    .values({ userId: dbUser.id, kind: 'document_review', systemPrompt: parsed.data.documentReview, updatedAt: now })
-    .onConflictDoUpdate({ target: [aiPromptSettings.userId, aiPromptSettings.kind], set: { systemPrompt: parsed.data.documentReview, updatedAt: now } });
+  const upsertGlobalPrompt = async (kind: 'document_review' | 'minutes_review', systemPrompt: string) => {
+    const [existing] = await db.select().from(aiPromptSettings).where(and(isNull(aiPromptSettings.userId), eq(aiPromptSettings.kind, kind))).limit(1);
+    if (existing) {
+      await db.update(aiPromptSettings).set({ systemPrompt, updatedAt: now }).where(eq(aiPromptSettings.id, existing.id));
+      return;
+    }
+    await db.insert(aiPromptSettings).values({ userId: null, kind, systemPrompt, updatedAt: now });
+  };
 
-  await db.insert(aiPromptSettings)
-    .values({ userId: dbUser.id, kind: 'minutes_review', systemPrompt: parsed.data.minutesReview, updatedAt: now })
-    .onConflictDoUpdate({ target: [aiPromptSettings.userId, aiPromptSettings.kind], set: { systemPrompt: parsed.data.minutesReview, updatedAt: now } });
+  await upsertGlobalPrompt('document_review', parsed.data.documentReview);
+  await upsertGlobalPrompt('minutes_review', parsed.data.minutesReview);
 
   return c.json({ ok: true });
 });
 
 router.get('/batches/:id', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -211,7 +247,7 @@ router.get('/batches/:id', async (c) => {
 });
 
 router.post('/batches/:id/sync', async (c) => {
-  const dbUser = await requireDbUser();
+  const dbUser = await requireApprovedUser();
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');

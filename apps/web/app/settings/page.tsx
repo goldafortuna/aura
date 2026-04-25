@@ -29,6 +29,10 @@ import {
   EyeOff,
   Send,
   X,
+  Users,
+  UserCheck,
+  UserX,
+  BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -44,6 +48,8 @@ type AiProviderRow = {
   isActive: boolean;
   hasApiKey: boolean;
   apiKeyPreview: string;
+  scope: 'global' | 'user';
+  canEdit: boolean;
 };
 
 type ProviderDraft = AiProviderRow & { apiKeyInput: string };
@@ -65,11 +71,19 @@ async function readApiErrorMessage(res: Response, fallback: string) {
   }
 }
 
-type SettingsTab = 'google' | 'ai' | 'prompts' | 'unit-kerja' | 'email';
+type SettingsTab = 'approval-users' | 'google' | 'ai' | 'prompts' | 'unit-kerja' | 'analytics' | 'email';
 
 function parseSettingsTab(raw: string | null): SettingsTab {
-  if (raw === 'ai' || raw === 'prompts' || raw === 'google' || raw === 'unit-kerja' || raw === 'email') return raw;
-  return 'google';
+  if (
+    raw === 'approval-users' ||
+    raw === 'ai' ||
+    raw === 'prompts' ||
+    raw === 'google' ||
+    raw === 'unit-kerja' ||
+    raw === 'analytics' ||
+    raw === 'email'
+  ) return raw;
+  return 'approval-users';
 }
 
 type UnitKerjaRow = {
@@ -85,6 +99,44 @@ type EmailConfigRow = {
   gmailAppPassword: string;
   fromName: string;
 } | null;
+
+type AdminUserRow = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  roles: Array<'secretary' | 'super_admin'>;
+  approvalStatus: 'pending' | 'approved' | 'rejected';
+  rejectedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type MeResponse = {
+  data?: {
+    roles?: string[];
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+  };
+};
+
+type TimeSavingsFormula = {
+  documentReviewBaseMinutes: number;
+  documentReviewPerFindingMinutes: number;
+  minutesReviewBaseMinutes: number;
+  minutesReviewPerFindingMinutes: number;
+  minutesReviewPerCtaMinutes: number;
+  waReminderBaseMinutes: number;
+  waReminderPerEventMinutes: number;
+};
+
+const defaultTimeSavingsFormula: TimeSavingsFormula = {
+  documentReviewBaseMinutes: 20,
+  documentReviewPerFindingMinutes: 3,
+  minutesReviewBaseMinutes: 30,
+  minutesReviewPerFindingMinutes: 2,
+  minutesReviewPerCtaMinutes: 5,
+  waReminderBaseMinutes: 5,
+  waReminderPerEventMinutes: 2,
+};
 
 // ---------------------------------------------------------------------------
 // Reusable sub-components
@@ -121,7 +173,8 @@ const FormInput: React.FC<{
   type?: string;
   hint?: string;
   fullWidth?: boolean;
-}> = ({ label, value, onChange, placeholder, type = 'text', hint, fullWidth }) => (
+  disabled?: boolean;
+}> = ({ label, value, onChange, placeholder, type = 'text', hint, fullWidth, disabled }) => (
   <label className={`block ${fullWidth ? 'md:col-span-2' : ''}`}>
     <span className="mb-1.5 block text-xs font-semibold text-gray-600">{label}</span>
     <input
@@ -129,7 +182,8 @@ const FormInput: React.FC<{
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
+      disabled={disabled}
+      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
     />
     {hint && <p className="mt-1 text-xs text-gray-400">{hint}</p>}
   </label>
@@ -165,6 +219,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
 
   const [gcalLoading, setGcalLoading] = useState(true);
   const [gcalConnected, setGcalConnected] = useState(false);
@@ -201,23 +256,38 @@ export default function SettingsPage() {
   const [emailVerifying, setEmailVerifying] = useState(false);
   const [emailVerifyResult, setEmailVerifyResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const activeProvider = useMemo(() => providers.find((p) => p.isActive)?.provider ?? '', [providers]);
+  const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
+  const [adminUsersStatus, setAdminUsersStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminUserActionId, setAdminUserActionId] = useState<string | null>(null);
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [timeSavingsFormula, setTimeSavingsFormula] = useState<TimeSavingsFormula>(defaultTimeSavingsFormula);
+  const [timeSavingsLoading, setTimeSavingsLoading] = useState(false);
+  const [timeSavingsSaving, setTimeSavingsSaving] = useState(false);
+
+  const canManageSystem = roles.includes('super_admin');
+  const canUseSecretarySettings = roles.includes('secretary');
 
   const load = async () => {
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      const [pRes, prRes] = await Promise.all([
+      const [meRes, pRes, prRes] = await Promise.all([
+        fetch('/api/me', { cache: 'no-store' }),
         fetch('/api/ai/providers', { cache: 'no-store' }),
         fetch('/api/ai/prompts', { cache: 'no-store' }),
       ]);
+      if (!meRes.ok) throw new Error(await readApiErrorMessage(meRes, 'Gagal memuat profil pengguna'));
       if (!pRes.ok) throw new Error(await readApiErrorMessage(pRes, 'Gagal memuat pengaturan provider'));
       if (!prRes.ok) throw new Error(await readApiErrorMessage(prRes, 'Gagal memuat system prompt'));
 
+      const meJson = (await meRes.json()) as MeResponse;
       const pJson = (await pRes.json()) as { data: AiProviderRow[] };
       const prJson = (await prRes.json()) as { data: { documentReview: string; minutesReview: string } };
 
+      setRoles(meJson.data?.roles ?? []);
       setProviders(pJson.data.map((p) => ({ ...p, apiKeyInput: p.hasApiKey ? p.apiKeyPreview : '' })));
       setDocPrompt(prJson.data.documentReview);
       setMinutesPrompt(prJson.data.minutesReview);
@@ -233,6 +303,112 @@ export default function SettingsPage() {
   useEffect(() => {
     setActiveTab(parseSettingsTab(searchParams?.get('section') ?? null));
   }, [searchParams]);
+
+  const loadAdminUsers = useCallback(async (status = adminUsersStatus) => {
+    setAdminUsersLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users?status=${encodeURIComponent(status)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal memuat user'));
+      const json = (await res.json()) as { data: AdminUserRow[] };
+      setAdminUsers(json.data ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  }, [adminUsersStatus]);
+
+  useEffect(() => {
+    if (activeTab === 'approval-users' && canManageSystem) void loadAdminUsers();
+  }, [activeTab, canManageSystem, loadAdminUsers]);
+
+  const loadTimeSavingsFormula = useCallback(async () => {
+    setTimeSavingsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/time-savings-settings', { cache: 'no-store' });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal memuat formula time savings'));
+      const json = (await res.json()) as { data: TimeSavingsFormula };
+      setTimeSavingsFormula({ ...defaultTimeSavingsFormula, ...json.data });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setTimeSavingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'analytics' && canManageSystem) void loadTimeSavingsFormula();
+  }, [activeTab, canManageSystem, loadTimeSavingsFormula]);
+
+  const changeAdminUserStatus = (status: typeof adminUsersStatus) => {
+    setAdminUsersStatus(status);
+    void loadAdminUsers(status);
+  };
+
+  const approveAdminUser = async (id: string) => {
+    setAdminUserActionId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${id}/approve`, { method: 'PATCH' });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal approve user'));
+      setMessage('User disetujui.');
+      await loadAdminUsers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setAdminUserActionId(null);
+    }
+  };
+
+  const rejectAdminUser = async (id: string) => {
+    setAdminUserActionId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${id}/reject`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: rejectReason.trim() || undefined }),
+      });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal reject user'));
+      setMessage('User ditolak.');
+      setRejectingUserId(null);
+      setRejectReason('');
+      await loadAdminUsers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setAdminUserActionId(null);
+    }
+  };
+
+  const toggleAdminUserRole = async (user: AdminUserRow, role: 'secretary' | 'super_admin') => {
+    const nextRoles = user.roles.includes(role)
+      ? user.roles.filter((r) => r !== role)
+      : [...user.roles, role];
+    if (nextRoles.length === 0) {
+      setError('User harus memiliki minimal satu role.');
+      return;
+    }
+
+    setAdminUserActionId(user.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/roles`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roles: nextRoles }),
+      });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal mengubah role user'));
+      setMessage('Role user diperbarui.');
+      await loadAdminUsers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setAdminUserActionId(null);
+    }
+  };
 
   // ── Unit Kerja ───────────────────────────────────────────────────────────────
 
@@ -251,8 +427,8 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'unit-kerja') void loadUnitKerja();
-  }, [activeTab, loadUnitKerja]);
+    if (activeTab === 'unit-kerja' && canManageSystem) void loadUnitKerja();
+  }, [activeTab, canManageSystem, loadUnitKerja]);
 
   const resetUkForm = () => {
     setUkName(''); setUkAliases(''); setUkEmail(''); setUkDesc('');
@@ -330,8 +506,8 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'email') void loadEmailConfig();
-  }, [activeTab, loadEmailConfig]);
+    if (activeTab === 'email' && canUseSecretarySettings) void loadEmailConfig();
+  }, [activeTab, canUseSecretarySettings, loadEmailConfig]);
 
   const saveEmailConfig = async () => {
     if (!gmailAddress.trim()) { setError('Gmail address wajib diisi.'); return; }
@@ -390,12 +566,12 @@ export default function SettingsPage() {
     }
   };
 
-  const goTab = (t: SettingsTab) => {
+  const goTab = useCallback((t: SettingsTab) => {
     setActiveTab(t);
     setError(null);
     setMessage(null);
     router.replace(`/settings?section=${t}`, { scroll: false });
-  };
+  }, [router]);
 
   const loadGoogleCalendarStatus = useCallback(async () => {
     setGcalLoading(true);
@@ -421,7 +597,9 @@ export default function SettingsPage() {
     }
   }, []);
 
-  useEffect(() => { void loadGoogleCalendarStatus(); }, [loadGoogleCalendarStatus]);
+  useEffect(() => {
+    if (canUseSecretarySettings) void loadGoogleCalendarStatus();
+  }, [canUseSecretarySettings, loadGoogleCalendarStatus]);
 
   const connectGoogleCalendar = async () => {
     setGcalConnecting(true);
@@ -455,6 +633,10 @@ export default function SettingsPage() {
   const saveProvider = async (provider: string) => {
     const row = providers.find((p) => p.provider === provider);
     if (!row) return;
+    if (!row.canEdit) {
+      setError('Anda tidak memiliki akses untuk mengubah provider ini.');
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -481,6 +663,11 @@ export default function SettingsPage() {
   };
 
   const activateProvider = async (provider: string) => {
+    const row = providers.find((p) => p.provider === provider);
+    if (!row?.canEdit) {
+      setError('Anda tidak memiliki akses untuk mengaktifkan provider ini.');
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -517,13 +704,50 @@ export default function SettingsPage() {
     }
   };
 
-  const tabDefs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'google', label: 'Google Calendar', icon: <Calendar className="h-4 w-4" /> },
-    { id: 'ai', label: 'Provider AI', icon: <Sparkles className="h-4 w-4" /> },
-    { id: 'prompts', label: 'System Prompt', icon: <Wand2 className="h-4 w-4" /> },
-    { id: 'unit-kerja', label: 'Unit Kerja', icon: <Building2 className="h-4 w-4" /> },
-    { id: 'email', label: 'Email', icon: <Mail className="h-4 w-4" /> },
-  ];
+  const updateTimeSavingsFormula = (key: keyof TimeSavingsFormula, rawValue: string) => {
+    const value = Number(rawValue);
+    setTimeSavingsFormula((prev) => ({
+      ...prev,
+      [key]: Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0,
+    }));
+  };
+
+  const saveTimeSavingsFormula = async () => {
+    setTimeSavingsSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/time-savings-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(timeSavingsFormula),
+      });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal menyimpan formula time savings'));
+      setMessage('Formula time savings disimpan.');
+      await loadTimeSavingsFormula();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setTimeSavingsSaving(false);
+    }
+  };
+
+  const tabDefs = useMemo<{ id: SettingsTab; label: string; icon: React.ReactNode }[]>(() => [
+    ...(canManageSystem ? [{ id: 'approval-users' as const, label: 'Approval User', icon: <Users className="h-4 w-4" /> }] : []),
+    ...(canUseSecretarySettings ? [{ id: 'google' as const, label: 'Google Calendar', icon: <Calendar className="h-4 w-4" /> }] : []),
+    ...((canManageSystem || canUseSecretarySettings) ? [{ id: 'ai' as const, label: 'Provider AI', icon: <Sparkles className="h-4 w-4" /> }] : []),
+    ...(canManageSystem ? [
+      { id: 'prompts' as const, label: 'System Prompt', icon: <Wand2 className="h-4 w-4" /> },
+      { id: 'unit-kerja' as const, label: 'Unit Kerja', icon: <Building2 className="h-4 w-4" /> },
+      { id: 'analytics' as const, label: 'Analytics', icon: <BarChart3 className="h-4 w-4" /> },
+    ] : []),
+    ...(canUseSecretarySettings ? [{ id: 'email' as const, label: 'Email', icon: <Mail className="h-4 w-4" /> }] : []),
+  ], [canManageSystem, canUseSecretarySettings]);
+
+  useEffect(() => {
+    if (loading || tabDefs.length === 0 || tabDefs.some((tab) => tab.id === activeTab)) return;
+    goTab(tabDefs[0]!.id);
+  }, [activeTab, loading, tabDefs, goTab]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -619,8 +843,172 @@ export default function SettingsPage() {
 
       {/* ── Tab content ── */}
       <AnimatePresence mode="wait">
+        {activeTab === 'approval-users' && canManageSystem && (
+          <motion.div
+            key="approval-users"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.18 }}
+          >
+            <SectionCard
+              icon={<Users className="h-5 w-5" />}
+              title="Approval User"
+              description="Setujui user baru setelah registrasi Clerk dan kelola role Secretary atau Super Admin."
+              action={
+                <button
+                  type="button"
+                  onClick={() => void loadAdminUsers()}
+                  disabled={adminUsersLoading}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${adminUsersLoading ? 'animate-spin' : ''}`} />
+                  Muat ulang
+                </button>
+              }
+            >
+              <div className="mb-4 flex flex-wrap gap-2">
+                {(['pending', 'approved', 'rejected', 'all'] as const).map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => changeAdminUserStatus(status)}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      adminUsersStatus === status
+                        ? 'bg-primary-600 text-white'
+                        : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : status === 'rejected' ? 'Rejected' : 'Semua'}
+                  </button>
+                ))}
+              </div>
+
+              {adminUsersLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-gray-100" />)}
+                </div>
+              ) : adminUsers.length === 0 ? (
+                <div className="rounded-2xl border-2 border-dashed border-gray-200 py-12 text-center">
+                  <Users className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                  <p className="text-sm text-gray-500">Tidak ada user untuk filter ini.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {adminUsers.map((user) => {
+                    const busy = adminUserActionId === user.id;
+                    const statusClass =
+                      user.approvalStatus === 'approved'
+                        ? 'bg-green-100 text-green-700'
+                        : user.approvalStatus === 'rejected'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700';
+
+                    return (
+                      <div key={user.id} className="rounded-2xl border border-gray-200 bg-white p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-gray-900">{user.fullName || user.email}</p>
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass}`}>
+                                {user.approvalStatus}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                            <p className="mt-1 text-xs text-gray-400">
+                              Registrasi {new Date(user.createdAt).toLocaleDateString('id-ID')}
+                            </p>
+                            {user.rejectedReason ? (
+                              <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{user.rejectedReason}</p>
+                            ) : null}
+                          </div>
+
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            {user.approvalStatus !== 'approved' ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void approveAdminUser(user.id)}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+                                Approve
+                              </button>
+                            ) : null}
+                            {user.approvalStatus !== 'rejected' ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => {
+                                  setRejectingUserId(rejectingUserId === user.id ? null : user.id);
+                                  setRejectReason('');
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                <UserX className="h-3.5 w-3.5" />
+                                Reject
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                          {(['secretary', 'super_admin'] as const).map((role) => (
+                            <button
+                              key={role}
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void toggleAdminUserRole(user, role)}
+                              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                                user.roles.includes(role)
+                                  ? 'bg-primary/10 text-primary-700'
+                                  : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {role === 'secretary' ? 'Secretary' : 'Super Admin'}
+                            </button>
+                          ))}
+                        </div>
+
+                        {rejectingUserId === user.id ? (
+                          <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3">
+                            <textarea
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              rows={2}
+                              placeholder="Alasan penolakan (opsional)"
+                              className="mb-2 w-full resize-none rounded-lg border border-red-100 bg-white px-3 py-2 text-sm outline-none focus:border-red-300"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setRejectingUserId(null)}
+                                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-white"
+                              >
+                                Batal
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void rejectAdminUser(user.id)}
+                                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                              >
+                                Konfirmasi Reject
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+          </motion.div>
+        )}
+
         {/* ─ Google Calendar ─ */}
-        {activeTab === 'google' && (
+        {activeTab === 'google' && canUseSecretarySettings && (
           <motion.div
             key="google"
             initial={{ opacity: 0, y: 10 }}
@@ -713,7 +1101,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─ Provider AI ─ */}
-        {activeTab === 'ai' && (
+        {activeTab === 'ai' && (canManageSystem || canUseSecretarySettings) && (
           <motion.div
             key="ai"
             initial={{ opacity: 0, y: 10 }}
@@ -748,7 +1136,7 @@ export default function SettingsPage() {
               ) : (
                 <div className="space-y-4">
                   {providers.map((p) => {
-                    const isActive = activeProvider === p.provider;
+                    const isActive = p.isActive;
                     return (
                       <div
                         key={p.provider}
@@ -766,6 +1154,9 @@ export default function SettingsPage() {
                               <p className="font-semibold text-gray-900">{p.displayName}</p>
                               <p className="flex items-center gap-2 text-xs text-gray-400">
                                 <span className="font-mono">{p.provider}</span>
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-500">
+                                  {p.scope === 'global' ? 'Default sistem' : 'Personal'}
+                                </span>
                                 {p.hasApiKey ? (
                                   <span className="flex items-center gap-1 text-green-600">
                                     <KeyRound className="h-3 w-3" /> {p.apiKeyPreview}
@@ -785,7 +1176,7 @@ export default function SettingsPage() {
                           ) : (
                             <button
                               type="button"
-                              disabled={saving}
+                              disabled={saving || !p.canEdit}
                               onClick={() => void activateProvider(p.provider)}
                               className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-primary-200 hover:bg-primary/5 hover:text-primary-700 disabled:opacity-50"
                             >
@@ -801,6 +1192,7 @@ export default function SettingsPage() {
                             <FormInput
                               label="Nama tampilan"
                               value={p.displayName}
+                              disabled={!p.canEdit}
                               onChange={(v) =>
                                 setProviders((prev) =>
                                   prev.map((x) => (x.provider === p.provider ? { ...x, displayName: v } : x)),
@@ -811,7 +1203,8 @@ export default function SettingsPage() {
                             <label className="block">
                               <span className="mb-1.5 block text-xs font-semibold text-gray-600">Transport</span>
                               <select
-                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-shadow focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
+                                disabled={!p.canEdit}
+                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-shadow focus:border-primary-400 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
                                 value={p.kind}
                                 onChange={(e) =>
                                   setProviders((prev) =>
@@ -832,6 +1225,7 @@ export default function SettingsPage() {
                               label="Base URL"
                               value={p.baseUrl}
                               fullWidth
+                              disabled={!p.canEdit}
                               onChange={(v) =>
                                 setProviders((prev) =>
                                   prev.map((x) => (x.provider === p.provider ? { ...x, baseUrl: v } : x)),
@@ -842,6 +1236,7 @@ export default function SettingsPage() {
                             <FormInput
                               label="Model"
                               value={p.model}
+                              disabled={!p.canEdit}
                               onChange={(v) =>
                                 setProviders((prev) =>
                                   prev.map((x) => (x.provider === p.provider ? { ...x, model: v } : x)),
@@ -853,6 +1248,7 @@ export default function SettingsPage() {
                               label="API Key"
                               value={p.apiKeyInput}
                               placeholder={p.hasApiKey ? 'Kosongkan untuk mempertahankan key lama' : 'Tempel API key di sini'}
+                              disabled={!p.canEdit}
                               onChange={(v) =>
                                 setProviders((prev) =>
                                   prev.map((x) => (x.provider === p.provider ? { ...x, apiKeyInput: v } : x)),
@@ -861,12 +1257,21 @@ export default function SettingsPage() {
                             />
                           </div>
 
-                          <div className="mt-4 flex justify-end">
-                            <SaveButton
-                              onClick={() => void saveProvider(p.provider)}
-                              loading={saving}
-                              label="Simpan provider"
-                            />
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            {!p.canEdit ? (
+                              <p className="text-xs text-gray-400">
+                                {p.scope === 'global'
+                                  ? 'Provider default sistem hanya dapat diubah oleh Super Admin.'
+                                  : 'Claude personal hanya dapat diubah oleh user Secretary.'}
+                              </p>
+                            ) : <span />}
+                            {p.canEdit ? (
+                              <SaveButton
+                                onClick={() => void saveProvider(p.provider)}
+                                loading={saving}
+                                label="Simpan provider"
+                              />
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -879,7 +1284,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─ System Prompt ─ */}
-        {activeTab === 'prompts' && (
+        {activeTab === 'prompts' && canManageSystem && (
           <motion.div
             key="prompts"
             initial={{ opacity: 0, y: 10 }}
@@ -940,7 +1345,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─ Unit Kerja ─ */}
-        {activeTab === 'unit-kerja' && (
+        {activeTab === 'unit-kerja' && canManageSystem && (
           <motion.div
             key="unit-kerja"
             initial={{ opacity: 0, y: 10 }}
@@ -1038,7 +1443,45 @@ export default function SettingsPage() {
         )}
 
         {/* ─ Konfigurasi Email ─ */}
-        {activeTab === 'email' && (
+        {activeTab === 'analytics' && canManageSystem && (
+          <motion.div
+            key="analytics"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.18 }}
+          >
+            <SectionCard
+              icon={<BarChart3 className="h-5 w-5" />}
+              title="Formula Time Savings"
+              description="Atur estimasi konservatif waktu manual yang dibandingkan dengan durasi otomasi aktual."
+            >
+              {timeSavingsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-100" />)}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormInput label="Review Dokumen - dasar (menit)" type="number" value={String(timeSavingsFormula.documentReviewBaseMinutes)} onChange={(v) => updateTimeSavingsFormula('documentReviewBaseMinutes', v)} />
+                    <FormInput label="Review Dokumen - per temuan (menit)" type="number" value={String(timeSavingsFormula.documentReviewPerFindingMinutes)} onChange={(v) => updateTimeSavingsFormula('documentReviewPerFindingMinutes', v)} />
+                    <FormInput label="Notula/CTA - dasar (menit)" type="number" value={String(timeSavingsFormula.minutesReviewBaseMinutes)} onChange={(v) => updateTimeSavingsFormula('minutesReviewBaseMinutes', v)} />
+                    <FormInput label="Notula/CTA - per temuan (menit)" type="number" value={String(timeSavingsFormula.minutesReviewPerFindingMinutes)} onChange={(v) => updateTimeSavingsFormula('minutesReviewPerFindingMinutes', v)} />
+                    <FormInput label="Notula/CTA - per CTA (menit)" type="number" value={String(timeSavingsFormula.minutesReviewPerCtaMinutes)} onChange={(v) => updateTimeSavingsFormula('minutesReviewPerCtaMinutes', v)} />
+                    <FormInput label="WA Reminder - dasar (menit)" type="number" value={String(timeSavingsFormula.waReminderBaseMinutes)} onChange={(v) => updateTimeSavingsFormula('waReminderBaseMinutes', v)} />
+                    <FormInput label="WA Reminder - per agenda (menit)" type="number" value={String(timeSavingsFormula.waReminderPerEventMinutes)} onChange={(v) => updateTimeSavingsFormula('waReminderPerEventMinutes', v)} />
+                  </div>
+
+                  <div className="flex justify-end border-t border-gray-100 pt-4">
+                    <SaveButton onClick={() => void saveTimeSavingsFormula()} loading={timeSavingsSaving} label="Simpan formula" />
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+          </motion.div>
+        )}
+
+        {activeTab === 'email' && canUseSecretarySettings && (
           <motion.div
             key="email"
             initial={{ opacity: 0, y: 10 }}

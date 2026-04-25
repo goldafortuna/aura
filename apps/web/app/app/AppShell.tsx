@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '../../components/Sidebar';
 import { Header } from '../../components/Header';
+import { AppLayoutSkeleton } from '../../components/LoadingSkeleton';
 import { Dashboard } from '../../pages/Dashboard';
 import { DocumentReview } from '../../pages/DocumentReview';
 import { MeetingMinutes } from '../../pages/MeetingMinutes';
@@ -25,8 +26,37 @@ const APP_TAB_IDS = [
 ] as const;
 type AppTabId = (typeof APP_TAB_IDS)[number];
 
+type MeResponse = {
+  data?: {
+    email: string;
+    fullName: string | null;
+    roles: string[];
+    approvalStatus: 'pending' | 'approved' | 'rejected';
+  };
+};
+
 function isAppTabId(value: string): value is AppTabId {
   return (APP_TAB_IDS as readonly string[]).includes(value);
+}
+
+function AccessNotice({
+  title,
+  message,
+  action,
+}: {
+  title: string;
+  message: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
+        {action ? <div className="mt-6">{action}</div> : null}
+      </div>
+    </div>
+  );
 }
 
 export default function AppShell() {
@@ -34,6 +64,31 @@ export default function AppShell() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<AppTabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [me, setMe] = useState<MeResponse['data'] | null>(null);
+  const [meLoading, setMeLoading] = useState(true);
+  const [meError, setMeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMe = async () => {
+      setMeLoading(true);
+      setMeError(null);
+      try {
+        const res = await fetch('/api/me', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Gagal memuat profil pengguna (HTTP ${res.status})`);
+        const json = (await res.json()) as MeResponse;
+        if (!cancelled) setMe(json.data ?? null);
+      } catch (err) {
+        if (!cancelled) setMeError(err instanceof Error ? err.message : 'Gagal memuat profil pengguna.');
+      } finally {
+        if (!cancelled) setMeLoading(false);
+      }
+    };
+    void loadMe();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const cal = searchParams?.get('calendarConnected');
@@ -96,6 +151,57 @@ export default function AppShell() {
     setSidebarOpen(false);
   }, [activeTab]);
 
+  if (meLoading) {
+    return <AppLayoutSkeleton variant="dashboard" />;
+  }
+
+  if (meError || !me) {
+    return (
+      <AccessNotice
+        title="Akses belum tersedia"
+        message={meError ?? 'Profil pengguna tidak ditemukan. Silakan login ulang.'}
+      />
+    );
+  }
+
+  if (me.approvalStatus === 'pending') {
+    return (
+      <AccessNotice
+        title="Menunggu Approval"
+        message="Akun Anda sudah terdaftar, tetapi belum disetujui oleh Super Admin. Setelah disetujui, fitur AURA akan otomatis bisa digunakan sesuai role yang diberikan."
+      />
+    );
+  }
+
+  if (me.approvalStatus === 'rejected') {
+    return (
+      <AccessNotice
+        title="Akses Ditolak"
+        message="Akun Anda belum dapat menggunakan AURA. Silakan hubungi Super Admin untuk informasi lebih lanjut."
+      />
+    );
+  }
+
+  if (!me.roles.includes('secretary')) {
+    return (
+      <AccessNotice
+        title="Tidak Ada Role Secretary"
+        message="Akun Anda belum memiliki role Secretary, sehingga fitur sekretaris tidak ditampilkan. Jika Anda Super Admin, buka Pengaturan Sistem untuk mengelola konfigurasi aplikasi."
+        action={
+          me.roles.includes('super_admin') ? (
+            <button
+              type="button"
+              onClick={() => router.replace('/settings')}
+              className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+            >
+              Buka Pengaturan Sistem
+            </button>
+          ) : null
+        }
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar
@@ -103,6 +209,7 @@ export default function AppShell() {
         setActiveTab={setActiveTabWithUrl}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        roles={me.roles}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

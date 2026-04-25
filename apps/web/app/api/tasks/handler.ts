@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '../../../db';
 import { tasks } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireSecretary } from '../../../lib/middleware/auth';
 
 const app = new Hono();
 
@@ -34,7 +34,7 @@ function parseDueDate(value: string | null | undefined): Date | null | undefined
 }
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const rows = await db
@@ -47,7 +47,7 @@ app.get('/', async (c) => {
 });
 
 app.post('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
@@ -78,7 +78,7 @@ app.post('/', async (c) => {
 });
 
 app.get('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -92,7 +92,7 @@ app.get('/:id', async (c) => {
 });
 
 app.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');
@@ -125,7 +125,7 @@ app.patch('/:id', async (c) => {
 });
 
 app.delete('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');

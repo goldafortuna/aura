@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db } from '../../../db';
 import { emailConfigs } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireApprovedUser } from '../../../lib/middleware/auth';
 import { encrypt, decrypt } from '../../../lib/encryption';
 import { verifyGmailConfig } from '../../../lib/sendEmailGmail';
 
@@ -16,7 +16,7 @@ const emailConfigSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireApprovedUser(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const [cfg] = await db
     .select()
@@ -33,7 +33,7 @@ app.get('/', async (c) => {
 });
 
 app.put('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireApprovedUser(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const body = await c.req.json();
   const parsed = emailConfigSchema.safeParse(body);
@@ -67,7 +67,7 @@ app.put('/', async (c) => {
 });
 
 app.post('/verify', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireApprovedUser(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const body = await c.req.json();
   const parsed = emailConfigSchema.safeParse(body);

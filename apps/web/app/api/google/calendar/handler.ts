@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../db';
 import { googleCalendarConnections } from '../../../../db/schema';
-import { requireDbUser } from '../../../../lib/middleware/auth';
+import { requireSecretary } from '../../../../lib/middleware/auth';
 import { 
   buildGoogleCalendarAuthUrl, 
   collectTomorrowEventsFromCalendars, 
@@ -31,6 +31,7 @@ import { decrypt, encrypt } from '../../../../lib/encryption';
 import { waReminderTemplates } from '../../../../db/schema';
 import { createRateLimitMiddleware } from '../../../../lib/middleware/rateLimit';
 import { internalServerError } from '../../../../lib/httpErrors';
+import { automationMinutesFromStartedAt, recordWaReminderSavings } from '../../../../lib/timeSavings';
 
 const app = new Hono();
 const externalApiRateLimit = createRateLimitMiddleware(10, 60_000);
@@ -204,7 +205,7 @@ async function resolveCalendarAccess(userId: string) {
 }
 
 app.get('/status', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   if (process.env.E2E_MOCK_GOOGLE_CALENDAR === '1') {
@@ -248,7 +249,7 @@ app.get('/status', async (c) => {
 });
 
 app.get('/auth-url', externalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   try {
@@ -263,7 +264,7 @@ app.get('/auth-url', externalApiRateLimit, async (c) => {
 app.get('/oauth/callback', async (c) => {
   let dbUser;
   try {
-    dbUser = await requireDbUser(c);
+    dbUser = await requireSecretary(c);
   } catch {
     return c.redirect(`${getPublicAppOrigin()}/sign-in?reason=oauth_clerk`);
   }
@@ -349,7 +350,7 @@ app.get('/oauth/callback', async (c) => {
 });
 
 app.delete('/connection', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   await db.delete(googleCalendarConnections).where(eq(googleCalendarConnections.userId, dbUser.id));
@@ -357,7 +358,7 @@ app.delete('/connection', async (c) => {
 });
 
 app.get('/calendar-list', externalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const [row] = await db
@@ -401,7 +402,7 @@ app.get('/calendar-list', externalApiRateLimit, async (c) => {
 });
 
 app.patch('/selection', externalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
@@ -449,8 +450,9 @@ app.patch('/selection', externalApiRateLimit, async (c) => {
 });
 
 app.get('/tomorrow-reminder', readHeavyExternalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+  const startedAtMs = Date.now();
 
   const cal = await resolveCalendarAccess(dbUser.id);
   if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
@@ -483,6 +485,14 @@ app.get('/tomorrow-reminder', readHeavyExternalApiRateLimit, async (c) => {
       dateUtcMidnight: tomorrowRange.dateUtcMidnight,
     });
 
+    await recordWaReminderSavings({
+      userId: dbUser.id,
+      sourceId: `tomorrow:${tomorrowRange.timeMin.slice(0, 10)}`,
+      eventCount: events.length,
+      actualAutomationMinutes: automationMinutesFromStartedAt(startedAtMs),
+      reminderType: 'besok',
+    });
+
     return c.json({
       data: {
         text,
@@ -503,7 +513,7 @@ app.get('/tomorrow-reminder', readHeavyExternalApiRateLimit, async (c) => {
 });
 
 app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   if (process.env.E2E_MOCK_GOOGLE_CALENDAR === '1') {
@@ -596,8 +606,9 @@ app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
 });
 
 app.get('/today-reminder', readHeavyExternalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+  const startedAtMs = Date.now();
 
   const cal = await resolveCalendarAccess(dbUser.id);
   if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
@@ -630,6 +641,14 @@ app.get('/today-reminder', readHeavyExternalApiRateLimit, async (c) => {
       dateUtcMidnight: todayRange.dateUtcMidnight,
     });
 
+    await recordWaReminderSavings({
+      userId: dbUser.id,
+      sourceId: `today:${todayRange.timeMin.slice(0, 10)}`,
+      eventCount: events.length,
+      actualAutomationMinutes: automationMinutesFromStartedAt(startedAtMs),
+      reminderType: 'hari_ini',
+    });
+
     return c.json({
       data: {
         text,
@@ -650,8 +669,9 @@ app.get('/today-reminder', readHeavyExternalApiRateLimit, async (c) => {
 });
 
 app.post('/render-date-reminder', externalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+  const startedAtMs = Date.now();
 
   try {
     const body = await c.req.json();
@@ -679,6 +699,14 @@ app.post('/render-date-reminder', externalApiRateLimit, async (c) => {
       dateUtcMidnight: new Date(`${parsed.data.dateIso}T00:00:00.000Z`),
     });
 
+    await recordWaReminderSavings({
+      userId: dbUser.id,
+      sourceId: `${parsed.data.type}:${parsed.data.dateIso}`,
+      eventCount: parsed.data.events.length,
+      actualAutomationMinutes: automationMinutesFromStartedAt(startedAtMs),
+      reminderType: parsed.data.type,
+    });
+
     return c.json({ data: { text } });
   } catch (err) {
     return internalServerError(
@@ -691,8 +719,9 @@ app.post('/render-date-reminder', externalApiRateLimit, async (c) => {
 });
 
 app.post('/event-reminder', externalApiRateLimit, async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+  const startedAtMs = Date.now();
 
   try {
     const body = await c.req.json();
@@ -718,6 +747,14 @@ app.post('/event-reminder', externalApiRateLimit, async (c) => {
       timeRange: parsed.data.timeRange,
       location: parsed.data.location,
       description: parsed.data.description,
+    });
+
+    await recordWaReminderSavings({
+      userId: dbUser.id,
+      sourceId: `event:${parsed.data.hariLabel}:${parsed.data.tanggalShort}:${parsed.data.title}:${parsed.data.timeRange}`,
+      eventCount: 1,
+      actualAutomationMinutes: automationMinutesFromStartedAt(startedAtMs),
+      reminderType: 'per_kegiatan',
     });
 
     return c.json({ data: { text } });

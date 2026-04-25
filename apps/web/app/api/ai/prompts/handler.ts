@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../../../../db';
 import { aiPromptSettings } from '../../../../db/schema';
-import { requireDbUser } from '../../../../lib/middleware/auth';
+import { requireApprovedUser, requireSuperAdmin } from '../../../../lib/middleware/auth';
 import { DEFAULT_DOCUMENT_REVIEW_SYSTEM_PROMPT, DEFAULT_MINUTES_REVIEW_SYSTEM_PROMPT } from '../../../../lib/defaultAiPrompts';
 
 const app = new Hono();
@@ -14,10 +14,10 @@ const upsertAiPromptsSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireApprovedUser(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
-  const rows = await db.select().from(aiPromptSettings).where(eq(aiPromptSettings.userId, dbUser.id));
+  const rows = await db.select().from(aiPromptSettings).where(isNull(aiPromptSettings.userId));
   const byKind = new Map(rows.map((r) => [r.kind, r.systemPrompt]));
 
   return c.json({
@@ -29,7 +29,7 @@ app.get('/', async (c) => {
 });
 
 app.put('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSuperAdmin(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
@@ -38,31 +38,31 @@ app.put('/', async (c) => {
 
   const now = new Date();
 
-  await db
-    .insert(aiPromptSettings)
-    .values({
-      userId: dbUser.id,
-      kind: 'document_review',
-      systemPrompt: parsed.data.documentReview,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [aiPromptSettings.userId, aiPromptSettings.kind],
-      set: { systemPrompt: parsed.data.documentReview, updatedAt: now },
-    });
+  const upsertGlobalPrompt = async (kind: 'document_review' | 'minutes_review', systemPrompt: string) => {
+    const [existing] = await db
+      .select()
+      .from(aiPromptSettings)
+      .where(and(isNull(aiPromptSettings.userId), eq(aiPromptSettings.kind, kind)))
+      .limit(1);
 
-  await db
-    .insert(aiPromptSettings)
-    .values({
-      userId: dbUser.id,
-      kind: 'minutes_review',
-      systemPrompt: parsed.data.minutesReview,
+    if (existing) {
+      await db
+        .update(aiPromptSettings)
+        .set({ systemPrompt, updatedAt: now })
+        .where(eq(aiPromptSettings.id, existing.id));
+      return;
+    }
+
+    await db.insert(aiPromptSettings).values({
+      userId: null,
+      kind,
+      systemPrompt,
       updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [aiPromptSettings.userId, aiPromptSettings.kind],
-      set: { systemPrompt: parsed.data.minutesReview, updatedAt: now },
     });
+  };
+
+  await upsertGlobalPrompt('document_review', parsed.data.documentReview);
+  await upsertGlobalPrompt('minutes_review', parsed.data.minutesReview);
 
   return c.json({ ok: true });
 });

@@ -11,7 +11,7 @@ test.describe('Task Management E2E', () => {
 
     await expect(page.getByRole('heading', { name: 'Manajemen Tugas' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Tambah Tugas' }).click();
+    await page.getByRole('button', { name: 'Tambah Tugas', exact: true }).click();
     const modal = page.locator('div.fixed.inset-0.z-50').filter({
       has: page.getByRole('heading', { name: 'Tambah Tugas Baru' }),
     });

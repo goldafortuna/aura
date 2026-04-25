@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { requireDbUser } from '../../../../lib/middleware/auth';
+import { requireSecretary } from '../../../../lib/middleware/auth';
 import { uploadObject } from '../../../../lib/objectStorage';
 import { validateUploadedFile } from '../../../../lib/utils/fileValidation';
 import { createRateLimitMiddleware } from '../../../../lib/middleware/rateLimit';
@@ -19,7 +19,7 @@ function sanitizeFilename(name: string) {
 
 // Apply rate limiting to file uploads
 app.post('/', createRateLimitMiddleware(10, 60000), async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   let formData: FormData;

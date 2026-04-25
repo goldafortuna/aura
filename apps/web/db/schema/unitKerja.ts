@@ -9,8 +9,7 @@ import { users } from './users';
 export const unitKerja = pgTable('unit_kerja', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull(),
+    .references(() => users.id, { onDelete: 'cascade' }),
   /** Nama lengkap unit kerja */
   name: text('name').notNull(),
   /** JSON array of alias/singkatan strings, e.g. ["DSDM","DitSDM"] */

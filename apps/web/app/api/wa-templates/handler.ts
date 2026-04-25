@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../../../db';
 import { waReminderTemplates, WA_TEMPLATE_TYPES } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireSecretary } from '../../../lib/middleware/auth';
 import { 
   WA_BESOK_DEFAULT_TEMPLATE,
   WA_HARI_INI_DEFAULT_TEMPLATE,
@@ -24,7 +24,7 @@ const upsertWaTemplateSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const rows = await db
@@ -48,7 +48,7 @@ app.get('/', async (c) => {
 });
 
 app.put('/:type', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const type = c.req.param('type');
@@ -84,7 +84,7 @@ app.put('/:type', async (c) => {
 });
 
 app.put('/:type/reset', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const type = c.req.param('type');

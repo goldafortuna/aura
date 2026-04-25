@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../../../db';
 import { unitKerja } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireApprovedUser, requireSuperAdmin } from '../../../lib/middleware/auth';
 
 const app = new Hono();
 
@@ -15,18 +15,18 @@ const unitKerjaSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireApprovedUser(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const rows = await db
     .select()
     .from(unitKerja)
-    .where(eq(unitKerja.userId, dbUser.id))
+    .where(isNull(unitKerja.userId))
     .orderBy(unitKerja.name);
   return c.json({ data: rows });
 });
 
 app.post('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSuperAdmin(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const body = await c.req.json();
   const parsed = unitKerjaSchema.safeParse(body);
@@ -34,7 +34,7 @@ app.post('/', async (c) => {
   const [created] = await db
     .insert(unitKerja)
     .values({
-      userId: dbUser.id,
+      userId: null,
       name: parsed.data.name,
       aliasesJson: JSON.stringify(parsed.data.aliases),
       email: parsed.data.email,
@@ -45,7 +45,7 @@ app.post('/', async (c) => {
 });
 
 app.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSuperAdmin(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -59,19 +59,19 @@ app.patch('/:id', async (c) => {
       ...(aliases !== undefined ? { aliasesJson: JSON.stringify(aliases) } : {}),
       updatedAt: new Date(),
     })
-    .where(and(eq(unitKerja.id, id), eq(unitKerja.userId, dbUser.id)))
+    .where(and(eq(unitKerja.id, id), isNull(unitKerja.userId)))
     .returning();
   if (!updated) return c.json({ error: 'Unit kerja not found' }, 404);
   return c.json({ data: updated });
 });
 
 app.delete('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSuperAdmin(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const id = c.req.param('id');
   const [deleted] = await db
     .delete(unitKerja)
-    .where(and(eq(unitKerja.id, id), eq(unitKerja.userId, dbUser.id)))
+    .where(and(eq(unitKerja.id, id), isNull(unitKerja.userId)))
     .returning();
   if (!deleted) return c.json({ error: 'Unit kerja not found' }, 404);
   return c.json({ data: deleted });

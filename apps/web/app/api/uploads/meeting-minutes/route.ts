@@ -1,9 +1,5 @@
-import { auth } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { db } from '../../../../db';
-import { users } from '../../../../db/schema';
-import { resolveDevBypassDbUser } from '../../../../lib/devDbUser';
+import { requireSecretary } from '../../../../lib/middleware/auth';
 import { uploadObject } from '../../../../lib/objectStorage';
 import { validateUploadedFile } from '../../../../lib/utils/fileValidation';
 import { internalServerErrorResponse } from '../../../../lib/nextHttpErrors';
@@ -21,20 +17,9 @@ function sanitizeFilename(name: string) {
     .slice(0, 120);
 }
 
-async function resolveDbUser() {
-  const devUser = await resolveDevBypassDbUser();
-  if (devUser) return devUser;
-
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const [byClerk] = await db.select().from(users).where(eq(users.clerkUserId, userId)).limit(1);
-  return byClerk ?? null;
-}
-
 export async function POST(request: Request) {
   try {
-    const dbUser = await resolveDbUser();
+    const dbUser = await requireSecretary();
     if (!dbUser) {
       return NextResponse.json(
         { error: 'User session ditemukan, tetapi profil database tidak cocok. Silakan login ulang.' },

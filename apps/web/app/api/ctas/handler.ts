@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
 import { db } from '../../../db';
 import { ctaItems, meetingMinutes } from '../../../db/schema';
-import { requireDbUser } from '../../../lib/middleware/auth';
+import { requireSecretary } from '../../../lib/middleware/auth';
 import { parseIsoDateOrNull } from '../../../lib/utils/date';
 
 const app = new Hono();
@@ -19,7 +19,7 @@ const updateCtaSchema = z.object({
 });
 
 app.get('/', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const { unit, status, priority, meetingDateFrom, meetingDateTo } = c.req.query();
@@ -68,7 +68,7 @@ app.get('/', async (c) => {
 });
 
 app.patch('/:id', async (c) => {
-  const dbUser = await requireDbUser(c);
+  const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const id = c.req.param('id');

@@ -2,22 +2,15 @@ import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { createSignedObjectUrl } from '../../../../../lib/objectStorage';
 import { db } from '../../../../../db';
-import { documents, users } from '../../../../../db/schema';
-import { auth } from '@clerk/nextjs/server';
-import { resolveDevBypassDbUser } from '../../../../../lib/devDbUser';
+import { documents } from '../../../../../db/schema';
 import { internalServerErrorResponse } from '../../../../../lib/nextHttpErrors';
+import { requireSecretary } from '../../../../../lib/middleware/auth';
 
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } },
 ) {
-  const bypassUser = await resolveDevBypassDbUser();
-  const userId = bypassUser ? null : (await auth()).userId;
-  const [dbUser] = bypassUser
-    ? [bypassUser]
-    : userId
-      ? await db.select().from(users).where(eq(users.clerkUserId, userId)).limit(1)
-      : [];
+  const dbUser = await requireSecretary();
   if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [doc] = await db

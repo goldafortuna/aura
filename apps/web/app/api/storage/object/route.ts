@@ -1,29 +1,14 @@
-import { auth } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { db } from '../../../../db';
-import { users } from '../../../../db/schema';
 import { downloadObject } from '../../../../lib/objectStorage';
-import { resolveDevBypassDbUser } from '../../../../lib/devDbUser';
 import { userOwnsStoragePath } from '../../../../lib/storageAccess';
 import { internalServerErrorResponse } from '../../../../lib/nextHttpErrors';
+import { requireSecretary } from '../../../../lib/middleware/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function resolveDbUser() {
-  const bypassUser = await resolveDevBypassDbUser();
-  if (bypassUser) return bypassUser;
-
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const [dbUser] = await db.select().from(users).where(eq(users.clerkUserId, userId)).limit(1);
-  return dbUser ?? null;
-}
-
 export async function GET(request: Request) {
-  const dbUser = await resolveDbUser();
+  const dbUser = await requireSecretary();
   if (!dbUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

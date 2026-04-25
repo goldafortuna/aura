@@ -1,9 +1,13 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sidebar } from '../../components/Sidebar';
 import { Header } from '../../components/Header';
 import { AppLayoutSkeleton } from '../../components/LoadingSkeleton';
+
+interface AcademyAdminLayoutProps {
+  children: React.ReactNode;
+}
 
 type MeResponse = {
   data?: {
@@ -12,7 +16,7 @@ type MeResponse = {
   };
 };
 
-function SettingsAccessNotice({ title, message }: { title: string; message: string }) {
+function AccessNotice({ title, message }: { title: string; message: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
@@ -23,7 +27,7 @@ function SettingsAccessNotice({ title, message }: { title: string; message: stri
   );
 }
 
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+export default function AcademyAdminLayout({ children }: AcademyAdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
@@ -50,43 +54,40 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       }
     };
     void loadMe();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
-    return <AppLayoutSkeleton variant="settings" />;
+    return <AppLayoutSkeleton variant="list" />;
   }
 
-  const hasSettingsRole = roles.includes('super_admin') || roles.includes('secretary');
-
-  if (error || approvalStatus !== 'approved' || !hasSettingsRole) {
+  if (error || approvalStatus !== 'approved' || !roles.includes('super_admin')) {
     return (
-      <SettingsAccessNotice
-        title="Pengaturan Tidak Tersedia"
-        message={error ?? 'Halaman ini hanya dapat diakses oleh user approved dengan role Super Admin atau Secretary.'}
+      <AccessNotice
+        title="Akses Ditolak"
+        message={error ?? 'Halaman ini hanya dapat diakses oleh Super Admin.'}
       />
     );
   }
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Suspense fallback={<div className="hidden h-full w-64 shrink-0 animate-pulse border-r border-gray-200 bg-gradient-to-b from-primary/10 to-secondary/10 md:block" aria-hidden />}>
-        <Sidebar
-          navMode="links"
-          activeTab=""
-          setActiveTab={() => {}}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          roles={roles}
+      <Sidebar
+        activeTab=""
+        setActiveTab={() => {}}
+        navMode="links"
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        roles={roles}
+      />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Header
+          onMenuClick={() => setSidebarOpen((v) => !v)}
+          isMenuOpen={sidebarOpen}
         />
-      </Suspense>
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen((v) => !v)} isMenuOpen={sidebarOpen} />
-        <Suspense fallback={<AppLayoutSkeleton variant="settings" />}>
-          <main className="flex-1 overflow-y-auto">{children}</main>
-        </Suspense>
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
       </div>
     </div>
   );
