@@ -79,6 +79,7 @@ type StorageInfo = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function readApiErrorMessage(res: Response, fallback: string) {
+  const contentType = res.headers.get('content-type') ?? '';
   const text = await res.text();
   if (!text.trim()) return `${fallback} (HTTP ${res.status})`;
   try {
@@ -86,6 +87,9 @@ async function readApiErrorMessage(res: Response, fallback: string) {
     const msg = typeof json.error === 'string' ? json.error : '';
     return msg || `${fallback} (HTTP ${res.status})`;
   } catch {
+    if (contentType.includes('text/html') || /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)) {
+      return `${fallback} (HTTP ${res.status}). Endpoint API tidak ditemukan atau server mengembalikan halaman HTML.`;
+    }
     return `${fallback} (HTTP ${res.status}): ${text.slice(0, 200)}`;
   }
 }
@@ -244,6 +248,7 @@ export const MeetingMinutes: React.FC = () => {
   const [reviewMinute, setReviewMinute] = useState<MeetingMinute | null>(null);
   const [reviewCtas, setReviewCtas] = useState<CtaItemRow[]>([]);
   const [ctaLoading, setCtaLoading] = useState(false);
+  const [ctaSavingIds, setCtaSavingIds] = useState<Set<string>>(new Set());
   const [approvedSet, setApprovedSet] = useState<Set<number>>(new Set());
   const [approvingSave, setApprovingSave] = useState(false);
   const [downloadingCorrected, setDownloadingCorrected] = useState<string | null>(null);
@@ -496,6 +501,7 @@ export const MeetingMinutes: React.FC = () => {
 
   const updateCta = async (ctaId: string, patch: Partial<Pick<CtaItemRow, 'status'>>) => {
     setReviewCtas((prev) => prev.map((c) => c.id === ctaId ? { ...c, ...patch } as CtaItemRow : c));
+    setCtaSavingIds((prev) => new Set(prev).add(ctaId));
     try {
       const res = await fetch(`/api/ctas/${ctaId}`, {
         method: 'PATCH',
@@ -515,6 +521,12 @@ export const MeetingMinutes: React.FC = () => {
       }
     } catch {
       showToast('Gagal memperbarui tindak lanjut.', 'err');
+    } finally {
+      setCtaSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(ctaId);
+        return next;
+      });
     }
   };
 
@@ -1242,31 +1254,37 @@ export const MeetingMinutes: React.FC = () => {
                                 <select
                                   className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs"
                                   value={cta.status}
+                                  disabled={ctaSavingIds.has(cta.id)}
                                   onChange={(e) => void updateCta(cta.id, { status: e.target.value as CtaItemRow['status'] })}
                                 >
                                   <option value="pending">Pending</option>
                                   <option value="in-progress">Dalam proses</option>
                                   <option value="completed">Selesai</option>
                                 </select>
+                                {ctaSavingIds.has(cta.id) && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Menyimpan
+                                  </span>
+                                )}
                               </div>
                             </div>
                           ))}
                         </div>
                       )}
 
-                      {/* Distribusi notula & tindak lanjut */}
-                      {reviewCtas.length > 0 && ['reviewed', 'approved'].includes(reviewMinute.status) && (
-                        <div className="mt-4 border-t border-gray-100 pt-4">
-                          <button
-                            onClick={() => {
-                              closeReview();
-                              openDistribute(reviewMinute);
-                            }}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:bg-emerald-800"
-                          >
-                            <Send className="h-4 w-4" />
-                            Distribusi Notula &amp; Tindak Lanjut via Email
-                          </button>
+                      {reviewCtas.length > 0 && (
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-4 text-xs text-gray-500">
+                          <span className="inline-flex items-center gap-1.5">
+                            {ctaSavingIds.size > 0 ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                            )}
+                            {ctaSavingIds.size > 0
+                              ? 'Menyimpan perubahan tindak lanjut...'
+                              : 'Tindak lanjut tersimpan. Kirim email dari aksi Distribusi Email di daftar notula.'}
+                          </span>
                         </div>
                       )}
                     </div>
