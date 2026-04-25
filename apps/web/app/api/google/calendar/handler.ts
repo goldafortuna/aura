@@ -12,6 +12,7 @@ import {
   fetchGoogleAccountEmail,
   fetchGoogleCalendarList,
   oauthGrantedScopeIncludesCalendar,
+  getMonthRangeInJakarta,
   getPublicAppOrigin,
   getTodayRangeInJakarta,
   getTomorrowRangeInJakarta,
@@ -52,6 +53,7 @@ function buildMockPlannerData() {
   const todayRange = getTodayRangeInJakarta();
   const tomorrowRange = getTomorrowRangeInJakarta();
   const weekRange = getWeekRangeInJakarta();
+  const monthRange = getMonthRangeInJakarta();
 
   const todayEvent: MockCalendarEvent = {
     id: 'mock-primary|today-1',
@@ -113,6 +115,11 @@ function buildMockPlannerData() {
       events: [todayEvent, tomorrowEvent, weekEvent].sort((a, b) => a.startMs - b.startMs),
       warnings: [] as string[],
       weekLabel: weekRange.weekLabel,
+    },
+    month: {
+      events: [todayEvent, tomorrowEvent, weekEvent].sort((a, b) => a.startMs - b.startMs),
+      warnings: [] as string[],
+      monthLabel: monthRange.monthLabel,
     },
   };
 }
@@ -511,8 +518,9 @@ app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
     const todayRange = getTodayRangeInJakarta();
     const tomorrowRange = getTomorrowRangeInJakarta();
     const weekRange = getWeekRangeInJakarta();
+    const monthRange = getMonthRangeInJakarta();
 
-    const [todayResult, tomorrowResult, weekResult] = await Promise.all([
+    const [todayResult, tomorrowResult, weekResult, monthResult] = await Promise.all([
       collectTomorrowEventsFromCalendars({
         accessToken: cal.accessToken,
         calendarIds: cal.chosen,
@@ -533,6 +541,13 @@ app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
         summaryById: cal.summaryById,
         timeMin: weekRange.timeMin,
         timeMax: weekRange.timeMax,
+      }),
+      collectTomorrowEventsFromCalendars({
+        accessToken: cal.accessToken,
+        calendarIds: cal.chosen,
+        summaryById: cal.summaryById,
+        timeMin: monthRange.timeMin,
+        timeMax: monthRange.timeMax,
       }),
     ]);
 
@@ -562,6 +577,11 @@ app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
           events: weekResult.events,
           warnings: weekResult.warnings,
           weekLabel: weekRange.weekLabel,
+        },
+        month: {
+          events: monthResult.events,
+          warnings: monthResult.warnings,
+          monthLabel: monthRange.monthLabel,
         },
       },
     });

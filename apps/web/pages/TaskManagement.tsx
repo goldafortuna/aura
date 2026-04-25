@@ -105,22 +105,38 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; badge: string }> = 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '';
   try {
-    return new Date(dateStr).toLocaleDateString('id-ID', {
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return dateStr;
+    return date.toLocaleString('id-ID', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
     });
   } catch {
     return dateStr;
   }
 }
 
+function toDatetimeLocalValue(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function isOverdue(dateStr: string | null, status: TaskStatus): boolean {
   if (!dateStr || status === 'completed') return false;
   const due = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return due < today;
+  if (Number.isNaN(due.getTime())) return false;
+  return due < new Date();
 }
 
 // ---------------------------------------------------------------------------
@@ -458,7 +474,7 @@ function TaskModal({ mode, open, form, setForm, onSubmit, onClose, submitting }:
                   Tenggat Waktu <span className="font-normal text-gray-400">(opsional)</span>
                 </label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={form.dueDate}
                   onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))}
                   className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
@@ -640,7 +656,7 @@ export const TaskManagement: React.FC = () => {
       description: task.description ?? '',
       priority: task.priority,
       status: task.status,
-      dueDate: task.dueDate ?? '',
+      dueDate: toDatetimeLocalValue(task.dueDate),
     });
     setEditingId(task.id);
     setShowModal(true);
@@ -669,7 +685,7 @@ export const TaskManagement: React.FC = () => {
           description: form.description.trim() || null,
           priority: form.priority,
           status: form.status,
-          dueDate: form.dueDate || null,
+          dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
         }),
       });
       if (!res.ok) throw new Error(isCreate ? 'Gagal membuat tugas.' : 'Gagal memperbarui tugas.');

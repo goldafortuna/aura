@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   FileText,
   ClipboardList,
@@ -734,31 +733,7 @@ export const Dashboard: React.FC = () => {
         )}
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="col-span-1 lg:col-span-3"
-      >
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">Dashboard CTA (Tindak Lanjut)</h3>
-              <p className="text-sm text-gray-500">Kelola dan pantau semua tindak lanjut dari notula rapat</p>
-            </div>
-            <Link
-              href="/app?tab=cta-dashboard"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Lihat Detail
-            </Link>
-          </div>
-          <div className="text-center py-8 text-gray-400">
-            <div className="mb-2">Komponen CTA Dashboard akan ditampilkan di halaman terpisah</div>
-            <div className="text-sm">Klik &quot;Lihat Detail&quot; untuk mengakses dashboard CTA lengkap</div>
-          </div>
-        </div>
-      </motion.div>
+
     </div>
   );
 };

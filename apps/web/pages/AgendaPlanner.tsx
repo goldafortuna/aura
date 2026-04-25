@@ -1,26 +1,32 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calendar as CalendarIcon,
-  Clock,
-  MapPin,
-  ChevronLeft,
-  ChevronRight,
-  MessageSquare,
-  Copy,
-  Check,
-  Loader2,
-  Link2,
-  X,
   AlertCircle,
+  Calendar as CalendarIcon,
+  Check,
+  Clock,
+  Copy,
+  Link2,
+  Loader2,
+  MapPin,
+  MessageSquare,
   RefreshCw,
+  Sparkles,
+  X,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { format, addDays, startOfWeek, isSameDay, isToday, isTomorrow } from 'date-fns';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  isToday,
+  isTomorrow,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns';
 import { id } from 'date-fns/locale';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 interface CalendarEvent {
   id: string;
   googleEventId: string;
@@ -49,15 +55,19 @@ interface WeekMeta {
   weekLabel: string;
 }
 
+interface MonthMeta {
+  events: CalendarEvent[];
+  warnings: string[];
+  monthLabel: string;
+}
+
 interface PlannerData {
   today: DayMeta;
   tomorrow: DayMeta;
   week: WeekMeta;
+  month: MonthMeta;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 async function readApiError(res: Response, fallback: string) {
   const text = await res.text();
   if (!text.trim()) return `${fallback} (HTTP ${res.status})`;
@@ -87,9 +97,18 @@ async function copyText(text: string) {
   ta.remove();
 }
 
-// ---------------------------------------------------------------------------
-// WA Result Modal
-// ---------------------------------------------------------------------------
+function normalizeTimeRange(value: string) {
+  return value.replace('â€“', ' - ').replace('–', ' - ');
+}
+
+function eventDateKey(event: CalendarEvent) {
+  return new Date(event.startMs).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+}
+
+function formatDateKey(date: Date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+}
+
 const WaModal: React.FC<{
   title: string;
   text: string;
@@ -114,50 +133,48 @@ const WaModal: React.FC<{
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+          initial={{ scale: 0.96, opacity: 0, y: 12 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 12 }}
+          className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100"
-            >
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">WhatsApp Reminder</p>
+              <h3 className="mt-1 text-lg font-bold text-gray-900">{title}</h3>
+            </div>
+            <button onClick={onClose} className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100" title="Tutup">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <textarea
-            readOnly
-            value={text}
-            rows={14}
-            className="mb-4 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800 outline-none"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={() => void handleCopy()}
-              disabled={!text.trim()}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
-            >
-              {copyState === 'ok' ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-              {copyState === 'ok' ? 'Disalin!' : copyState === 'fail' ? 'Gagal salin' : 'Salin ke clipboard'}
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Tutup
-            </button>
+          <div className="p-6">
+            <textarea
+              readOnly
+              value={text}
+              rows={14}
+              className="mb-4 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800 outline-none"
+            />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                onClick={() => void handleCopy()}
+                disabled={!text.trim()}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {copyState === 'ok' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copyState === 'ok' ? 'Disalin' : copyState === 'fail' ? 'Gagal salin' : 'Salin ke clipboard'}
+              </button>
+              <button
+                onClick={onClose}
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>
@@ -165,17 +182,15 @@ const WaModal: React.FC<{
   );
 };
 
-// ---------------------------------------------------------------------------
-// Event card (single agenda item row)
-// ---------------------------------------------------------------------------
 const EventRow: React.FC<{
   event: CalendarEvent;
   index: number;
   hariLabel: string;
   tanggalShort: string;
+  compact?: boolean;
   showWaBtn?: boolean;
   onWaClick?: (text: string) => void;
-}> = ({ event, index, hariLabel, tanggalShort, showWaBtn, onWaClick }) => {
+}> = ({ event, index, hariLabel, tanggalShort, compact, showWaBtn, onWaClick }) => {
   const [loading, setLoading] = useState(false);
 
   const handleWa = async () => {
@@ -205,59 +220,57 @@ const EventRow: React.FC<{
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className="group rounded-xl border border-gray-100 bg-white/95 p-3 shadow-sm transition-all hover:border-primary/25 hover:shadow-md"
     >
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary-700">
-        {index + 1}
-      </span>
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="font-semibold leading-tight text-gray-800">{event.title}</p>
-        <p className="flex items-center gap-1.5 text-xs text-gray-500">
-          <Clock className="h-3.5 w-3.5 shrink-0" />
-          {event.isAllDay ? 'Sepanjang hari' : `pukul: ${event.timeRange.replace('–', ' - ')}`}
-        </p>
-        {event.location ? (
-          <p className="flex items-center gap-1.5 text-xs text-gray-500">
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
-            {event.location}
-          </p>
-        ) : null}
-        {event.description ? (
-          <p className="line-clamp-2 text-xs italic text-gray-400">{event.description}</p>
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-sky-500 text-xs font-bold text-white shadow-sm shadow-primary-500/20">
+          {index + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm font-bold leading-snug text-gray-900">{event.title}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1">
+              <Clock className="h-3 w-3" />
+              {event.isAllDay ? 'Sepanjang hari' : normalizeTimeRange(event.timeRange)}
+            </span>
+            {event.location ? (
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-sky-700">
+                <MapPin className="h-3 w-3 shrink-0" />
+                <span className="truncate">{event.location}</span>
+              </span>
+            ) : null}
+          </div>
+          {!compact && event.description ? (
+            <p className="mt-2 line-clamp-2 text-xs text-gray-400">{event.description}</p>
+          ) : null}
+        </div>
+        {showWaBtn ? (
+          <button
+            disabled={loading}
+            onClick={() => void handleWa()}
+            title="Generate WA reminder untuk acara ini"
+            className="shrink-0 rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+          </button>
         ) : null}
       </div>
-      {showWaBtn ? (
-        <button
-          disabled={loading}
-          onClick={() => void handleWa()}
-          title="Generate WA reminder untuk acara ini"
-          className="shrink-0 rounded-lg p-2 text-green-600 transition-colors hover:bg-green-50 disabled:opacity-50"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <MessageSquare className="h-4 w-4" />
-          )}
-        </button>
-      ) : null}
     </motion.div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Day card (Hari Ini / Besok)
-// ---------------------------------------------------------------------------
-const DayCard: React.FC<{
+const DayPanel: React.FC<{
   label: string;
   meta: DayMeta;
   reminderType: 'hari_ini' | 'besok';
   reminderLabel: string;
+  tone: 'dark' | 'light';
   showPerEventWa?: boolean;
   onWaText: (text: string, title: string) => void;
-}> = ({ label, meta, reminderType, reminderLabel, showPerEventWa, onWaText }) => {
+}> = ({ label, meta, reminderType, reminderLabel, tone, showPerEventWa, onWaText }) => {
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
@@ -265,7 +278,6 @@ const DayCard: React.FC<{
     setGenLoading(true);
     setGenError(null);
     try {
-      // Use already-loaded events — no extra GCal fetch, renders instantly
       const res = await fetch('/api/google/calendar/render-date-reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -287,149 +299,141 @@ const DayCard: React.FC<{
     }
   };
 
+  const dark = tone === 'dark';
+
   return (
-    <motion.div
+    <motion.section
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+      className={`overflow-hidden rounded-2xl border p-5 shadow-sm ${
+        dark
+          ? 'border-teal-100 bg-gradient-to-br from-teal-50 via-cyan-50 to-violet-50 text-gray-950 shadow-teal-900/5'
+          : 'border-gray-100 bg-white text-gray-900'
+      }`}
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</span>
-          <h3 className="mt-0.5 font-bold text-gray-800">{meta.hariLabel}, {meta.tanggalShort}</h3>
+          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${dark ? 'text-teal-700' : 'text-primary-600'}`}>
+            {label}
+          </p>
+          <h3 className="mt-1 text-lg font-bold">{meta.hariLabel}, {meta.tanggalShort}</h3>
+          <p className={`mt-1 text-xs ${dark ? 'text-teal-700/70' : 'text-gray-500'}`}>{meta.events.length} agenda terjadwal</p>
         </div>
         <button
           disabled={genLoading}
           onClick={() => void handleGenerateWa()}
           title={reminderLabel}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+          className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition-colors disabled:opacity-60 ${
+            dark
+              ? 'bg-teal-600 text-white shadow-sm shadow-teal-700/20 hover:bg-teal-700'
+              : 'bg-emerald-600 text-white hover:bg-emerald-700'
+          }`}
         >
-          {genLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <MessageSquare className="h-3.5 w-3.5" />
-          )}
+          {genLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />}
           WA
         </button>
       </div>
 
       {genError ? (
-        <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{genError}</p>
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{genError}</p>
       ) : null}
 
       {meta.warnings.length > 0 ? (
-        <div className="mb-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-          <p className="flex items-center gap-1 text-xs font-semibold text-amber-800">
-            <AlertCircle className="h-3.5 w-3.5" /> Peringatan
-          </p>
-          {meta.warnings.map((w) => (
-            <p key={w} className="mt-0.5 text-xs text-amber-700">
-              {w}
-            </p>
-          ))}
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {meta.warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </div>
       ) : null}
 
-      <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 320 }}>
+      <div className="space-y-2 overflow-y-auto pr-1" style={{ maxHeight: 360 }}>
         {meta.events.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">Tidak ada agenda.</p>
+          <div className={`rounded-xl border border-dashed px-4 py-8 text-center text-sm ${dark ? 'border-teal-200 bg-white/50 text-teal-700/70' : 'border-gray-200 text-gray-400'}`}>
+            Tidak ada agenda.
+          </div>
         ) : (
-          meta.events.map((ev, i) => (
+          meta.events.map((event, index) => (
             <EventRow
-              key={ev.id}
-              event={ev}
-              index={i}
+              key={event.id}
+              event={event}
+              index={index}
               hariLabel={meta.hariLabel}
               tanggalShort={meta.tanggalShort}
               showWaBtn={showPerEventWa}
-              onWaClick={(text) => onWaText(text, `WA — ${ev.title}`)}
+              onWaClick={(text) => onWaText(text, `WA - ${event.title}`)}
             />
           ))
         )}
       </div>
-
-      <p className="mt-3 text-right text-xs text-gray-400">
-        {meta.events.length} agenda
-      </p>
-    </motion.div>
+    </motion.section>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Week card (Agenda Minggu Ini)
-// ---------------------------------------------------------------------------
-const WeekCard: React.FC<{ meta: WeekMeta }> = ({ meta }) => {
-  const byDay = meta.events.reduce<Record<string, CalendarEvent[]>>((acc, ev) => {
-    const d = new Date(ev.startMs).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-    if (!acc[d]) acc[d] = [];
-    acc[d].push(ev);
-    return acc;
-  }, {});
+const WeekAgenda: React.FC<{ meta: WeekMeta }> = ({ meta }) => {
+  const grouped = useMemo(() => {
+    return meta.events.reduce<Record<string, CalendarEvent[]>>((acc, event) => {
+      const key = eventDateKey(event);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(event);
+      return acc;
+    }, {});
+  }, [meta.events]);
 
-  const days = Object.keys(byDay).sort();
+  const days = Object.keys(grouped).sort();
 
   return (
-    <motion.div
+    <motion.section
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
-      className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+      transition={{ delay: 0.08 }}
+      className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
     >
-      <div className="mb-3">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Minggu Ini</span>
-        <h3 className="mt-0.5 font-bold text-gray-800">{meta.weekLabel}</h3>
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">Pekan Ini</p>
+          <h3 className="mt-1 text-lg font-bold text-gray-900">{meta.weekLabel}</h3>
+        </div>
+        <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">{meta.events.length} agenda</span>
       </div>
 
       {meta.warnings.length > 0 ? (
-        <div className="mb-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-          {meta.warnings.map((w) => (
-            <p key={w} className="text-xs text-amber-700">{w}</p>
-          ))}
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {meta.warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </div>
       ) : null}
 
-      <div className="space-y-3 overflow-y-auto" style={{ maxHeight: 360 }}>
+      <div className="space-y-4 overflow-y-auto pr-1" style={{ maxHeight: 420 }}>
         {days.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400">Tidak ada agenda minggu ini.</p>
+          <p className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400">
+            Tidak ada agenda minggu ini.
+          </p>
         ) : (
-          days.map((dateStr) => {
-            const d = new Date(`${dateStr}T00:00:00+07:00`);
-            const label = d.toLocaleDateString('id-ID', {
-              weekday: 'short',
+          days.map((dateKey) => {
+            const date = new Date(`${dateKey}T00:00:00+07:00`);
+            const label = date.toLocaleDateString('id-ID', {
+              weekday: 'long',
               day: 'numeric',
               month: 'short',
               timeZone: 'Asia/Jakarta',
             });
-            const todayFlag = isToday(d);
-            const tomorrowFlag = isTomorrow(d);
             return (
-              <div key={dateStr}>
-                <p
-                  className={`mb-1.5 text-xs font-semibold ${
-                    todayFlag
-                      ? 'text-primary-600'
-                      : tomorrowFlag
-                        ? 'text-secondary-600'
-                        : 'text-gray-500'
-                  }`}
-                >
-                  {label}
-                  {todayFlag ? ' · Hari ini' : tomorrowFlag ? ' · Besok' : ''}
-                </p>
-                <div className="space-y-1.5 pl-2">
-                  {byDay[dateStr].map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2"
-                    >
-                      <p className="truncate text-xs font-medium text-gray-800">{ev.title}</p>
-                      {!ev.isAllDay ? (
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
-                          <Clock className="h-3 w-3" />
-                          {ev.timeRange.replace('–', ' - ')}
-                        </p>
-                      ) : null}
-                    </div>
+              <div key={dateKey}>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-bold text-gray-800">
+                    {label}
+                    {isToday(date) ? <span className="ml-2 text-primary-600">Hari ini</span> : null}
+                    {isTomorrow(date) ? <span className="ml-2 text-emerald-600">Besok</span> : null}
+                  </p>
+                  <span className="text-xs font-semibold text-gray-400">{grouped[dateKey].length}</span>
+                </div>
+                <div className="space-y-2">
+                  {grouped[dateKey].map((event, index) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      index={index}
+                      hariLabel={label}
+                      tanggalShort={label}
+                      compact
+                    />
                   ))}
                 </div>
               </div>
@@ -437,115 +441,114 @@ const WeekCard: React.FC<{ meta: WeekMeta }> = ({ meta }) => {
           })
         )}
       </div>
-
-      <p className="mt-3 text-right text-xs text-gray-400">{meta.events.length} total agenda</p>
-    </motion.div>
+    </motion.section>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Mini calendar (week view) — kept at bottom
-// ---------------------------------------------------------------------------
-const MiniWeekCalendar: React.FC<{ weekEvents: CalendarEvent[] }> = ({ weekEvents }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+const MonthCalendar: React.FC<{ meta: MonthMeta }> = ({ meta }) => {
+  const currentDate = new Date();
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+  const weekdayLabels = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
-  const getEventsForDay = (day: Date) =>
-    weekEvents.filter((ev) => {
-      const d = new Date(`${new Date(ev.startMs).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })}T00:00:00+07:00`);
-      return isSameDay(d, day);
-    });
+  const grouped = useMemo(() => {
+    return meta.events.reduce<Record<string, CalendarEvent[]>>((acc, event) => {
+      const key = eventDateKey(event);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(event);
+      return acc;
+    }, {});
+  }, [meta.events]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
+    <motion.section
+      initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      transition={{ delay: 0.14 }}
+      className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
     >
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCurrentDate(addDays(currentDate, -7))}
-            className="rounded-lg p-2 transition-colors hover:bg-gray-100"
-          >
-            <ChevronLeft className="h-4 w-4 text-gray-600" />
-          </button>
-          <span className="font-bold text-gray-800">
-            {format(weekStart, 'MMMM yyyy', { locale: id })}
-          </span>
-          <button
-            onClick={() => setCurrentDate(addDays(currentDate, 7))}
-            className="rounded-lg p-2 transition-colors hover:bg-gray-100"
-          >
-            <ChevronRight className="h-4 w-4 text-gray-600" />
-          </button>
+      <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600">Kalender Bulanan</p>
+          <h3 className="mt-1 text-xl font-bold text-gray-900">{meta.monthLabel || format(currentDate, 'MMMM yyyy', { locale: id })}</h3>
         </div>
-        <button
-          onClick={() => setCurrentDate(new Date())}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-        >
-          Hari Ini
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700">{meta.events.length} agenda bulan ini</span>
+          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">View 1 bulan</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        {weekDays.map((day, i) => {
-          const dayEvs = getEventsForDay(day);
-          const isDay = isToday(day);
-          return (
-            <div
-              key={i}
-              className={`min-h-[120px] rounded-xl border-2 p-2 ${
-                isDay
-                  ? 'border-primary-400 bg-gradient-to-br from-primary/5 to-secondary/5'
-                  : 'border-gray-200 bg-white'
-              }`}
-            >
-              <div className="mb-2 text-center">
-                <p className="text-[10px] uppercase text-gray-400">
-                  {format(day, 'EEE', { locale: id })}
-                </p>
-                <p
-                  className={`text-lg font-bold ${isDay ? 'text-primary-600' : 'text-gray-700'}`}
-                >
-                  {format(day, 'd')}
-                </p>
-              </div>
-              <div className="space-y-1">
-                {dayEvs.slice(0, 3).map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="truncate rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary-800"
-                    title={ev.title}
-                  >
-                    {ev.title}
-                  </div>
-                ))}
-                {dayEvs.length > 3 ? (
-                  <p className="text-[10px] text-gray-400">+{dayEvs.length - 3} lagi</p>
-                ) : null}
-              </div>
+      {meta.warnings.length > 0 ? (
+        <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {meta.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+        </div>
+      ) : null}
+
+      <div className="p-3 sm:p-5">
+        <div className="grid grid-cols-7 gap-1.5">
+          {weekdayLabels.map((day) => (
+            <div key={day} className="px-1 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-gray-400">
+              {day}
             </div>
-          );
-        })}
+          ))}
+          {days.map((day) => {
+            const key = formatDateKey(day);
+            const events = grouped[key] ?? [];
+            const activeMonth = isSameMonth(day, currentDate);
+            const today = isToday(day);
+            return (
+              <div
+                key={key}
+                className={`min-h-[112px] rounded-xl border p-2 transition-colors ${
+                  today
+                    ? 'border-primary-400 bg-primary/5 shadow-sm'
+                    : activeMonth
+                      ? 'border-gray-100 bg-white hover:border-gray-200'
+                      : 'border-gray-50 bg-gray-50/60 text-gray-300'
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${today ? 'bg-primary-600 text-white' : activeMonth ? 'text-gray-800' : 'text-gray-300'}`}>
+                    {format(day, 'd')}
+                  </span>
+                  {events.length > 0 ? (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{events.length}</span>
+                  ) : null}
+                </div>
+                <div className="space-y-1">
+                  {events.slice(0, 3).map((event) => (
+                    <div
+                      key={event.id}
+                      title={event.title}
+                      className="truncate rounded-md border border-primary/10 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary-800"
+                    >
+                      {!event.isAllDay ? `${normalizeTimeRange(event.timeRange).split(' ')[0]} ` : ''}
+                      {event.title}
+                    </div>
+                  ))}
+                  {events.length > 3 ? (
+                    <p className="px-1 text-[11px] font-semibold text-gray-400">+{events.length - 3} lagi</p>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </motion.div>
+    </motion.section>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 export const AgendaPlanner: React.FC = () => {
   const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
   const [plannerData, setPlannerData] = useState<PlannerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
-
   const [waModal, setWaModal] = useState<{ text: string; title: string } | null>(null);
-
   const fetchRef = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -593,28 +596,73 @@ export const AgendaPlanner: React.FC = () => {
     }
   };
 
+  const summary = useMemo(() => {
+    if (!plannerData) return null;
+    const monthEvents = plannerData.month?.events ?? [];
+    const nextEvent = monthEvents.find((event) => event.startMs >= Date.now()) ?? monthEvents[0] ?? null;
+    const calendars = new Set(monthEvents.map((event) => event.calendarSummary || event.calendarId)).size;
+    return {
+      today: plannerData.today.events.length,
+      tomorrow: plannerData.tomorrow.events.length,
+      week: plannerData.week.events.length,
+      month: monthEvents.length,
+      calendars,
+      nextEvent,
+    };
+  }, [plannerData]);
+
   const openWaModal = (text: string, title: string) => setWaModal({ text, title });
   const closeWaModal = () => setWaModal(null);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="mb-1 text-3xl font-bold text-gray-800">Agenda Pimpinan</h1>
-          <p className="text-gray-500">Jadwal harian dari Google Calendar terhubung</p>
-        </div>
-        <button
-          onClick={() => void loadData()}
-          disabled={loading}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-60"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Muat ulang
-        </button>
-      </div>
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-violet-50 via-sky-50 to-emerald-50 text-gray-950 shadow-xl shadow-sky-900/10"
+      >
+        <div className="relative p-6 sm:p-8">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fuchsia-300 via-sky-300 to-emerald-300" />
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/70 px-3 py-1 text-xs font-semibold text-primary-700 shadow-sm">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                Agenda Command Center
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Agenda Pimpinan</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
+                Tampilan eksekutif untuk memantau agenda harian, pekanan, dan kalender bulanan dari Google Calendar terhubung.
+              </p>
+            </div>
+            <button
+              onClick={() => void loadData()}
+              disabled={loading}
+              className="inline-flex w-fit items-center gap-2 rounded-xl border border-primary-100 bg-white px-4 py-2.5 text-sm font-bold text-primary-800 shadow-sm transition-colors hover:bg-primary-50 disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Muat ulang
+            </button>
+          </div>
 
-      {/* Error banner */}
+          {summary ? (
+            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-5">
+              {[
+                ['Hari ini', summary.today],
+                ['Besok', summary.tomorrow],
+                ['Pekan ini', summary.week],
+                ['Bulan ini', summary.month],
+                ['Kalender', summary.calendars || 1],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-white/80 bg-white/60 px-4 py-3 shadow-sm backdrop-blur">
+                  <p className="text-xs font-medium text-gray-500">{label}</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{Number(value).toLocaleString('id-ID')}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </motion.section>
+
       {error ? (
         <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -622,28 +670,23 @@ export const AgendaPlanner: React.FC = () => {
         </div>
       ) : null}
 
-      {/* Loading skeleton */}
       {loading ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-gray-100"
-            />
+            <div key={i} className="h-72 animate-pulse rounded-2xl border border-gray-200 bg-gray-100" />
           ))}
         </div>
       ) : calendarConnected === false ? (
-        /* Not connected CTA */
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm"
+          className="rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm"
         >
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
             <CalendarIcon className="h-8 w-8 text-primary-600" />
           </div>
-          <h2 className="mb-2 text-xl font-bold text-gray-800">Google Calendar belum terhubung</h2>
-          <p className="mb-6 text-sm text-gray-500">
+          <h2 className="mb-2 text-xl font-bold text-gray-900">Google Calendar belum terhubung</h2>
+          <p className="mx-auto mb-6 max-w-md text-sm text-gray-500">
             Hubungkan akun Google untuk menampilkan agenda pimpinan secara otomatis.
           </p>
           <button
@@ -651,46 +694,68 @@ export const AgendaPlanner: React.FC = () => {
             onClick={() => void handleConnectGoogle()}
             className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:opacity-60"
           >
-            {connectingGoogle ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Link2 className="h-4 w-4" />
-            )}
+            {connectingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
             Hubungkan Google Calendar
           </button>
         </motion.div>
       ) : plannerData ? (
-        /* Main content */
         <>
-          {/* 3 cards */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <DayCard
-              label="Agenda Hari Ini"
+          {summary?.nextEvent ? (
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 shadow-sm"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Agenda Berikutnya</p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-900">{summary.nextEvent.title}</h2>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 shadow-sm">
+                      <Clock className="h-3.5 w-3.5" />
+                      {summary.nextEvent.isAllDay ? 'Sepanjang hari' : normalizeTimeRange(summary.nextEvent.timeRange)}
+                    </span>
+                    {summary.nextEvent.location ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 shadow-sm">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {summary.nextEvent.location}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
+                  {summary.nextEvent.calendarSummary}
+                </span>
+              </div>
+            </motion.section>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <DayPanel
+              label="Hari Ini"
               meta={plannerData.today}
               reminderType="hari_ini"
               reminderLabel="WA Reminder Hari Ini"
+              tone="dark"
               showPerEventWa
               onWaText={openWaModal}
             />
-            <DayCard
-              label="Agenda Besok"
+            <DayPanel
+              label="Besok"
               meta={plannerData.tomorrow}
               reminderType="besok"
               reminderLabel="WA Reminder Besok"
+              tone="light"
               onWaText={openWaModal}
             />
-            <WeekCard meta={plannerData.week} />
+            <WeekAgenda meta={plannerData.week} />
           </div>
 
-          {/* Mini calendar */}
-          <MiniWeekCalendar weekEvents={plannerData.week.events} />
+          <MonthCalendar meta={plannerData.month} />
         </>
       ) : null}
 
-      {/* WA modal */}
-      {waModal ? (
-        <WaModal title={waModal.title} text={waModal.text} onClose={closeWaModal} />
-      ) : null}
+      {waModal ? <WaModal title={waModal.title} text={waModal.text} onClose={closeWaModal} /> : null}
     </div>
   );
 };

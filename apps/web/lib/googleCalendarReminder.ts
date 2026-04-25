@@ -574,6 +574,39 @@ export function getWeekRangeInJakarta(now = new Date()): {
   };
 }
 
+/** Bulan berjalan menurut kalender Asia/Jakarta. */
+export function getMonthRangeInJakarta(now = new Date()): {
+  timeMin: string;
+  timeMax: string;
+  monthLabel: string;
+} {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = fmt.formatToParts(now);
+  const y = Number(parts.find((p) => p.type === 'year')!.value);
+  const m = Number(parts.find((p) => p.type === 'month')!.value);
+  const firstDay = new Date(Date.UTC(y, m - 1, 1));
+  const lastDay = new Date(Date.UTC(y, m, 0));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const firstStr = `${firstDay.getUTCFullYear()}-${pad(firstDay.getUTCMonth() + 1)}-${pad(firstDay.getUTCDate())}`;
+  const lastStr = `${lastDay.getUTCFullYear()}-${pad(lastDay.getUTCMonth() + 1)}-${pad(lastDay.getUTCDate())}`;
+  const monthLabel = new Intl.DateTimeFormat('id-ID', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }).format(firstDay);
+
+  return {
+    timeMin: `${firstStr}T00:00:00${JAKARTA_OFFSET}`,
+    timeMax: `${lastStr}T23:59:59${JAKARTA_OFFSET}`,
+    monthLabel,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Javanese pasaran (5-day cycle)
 // Reference verified: January 1, 2000 = Legi (index 0)

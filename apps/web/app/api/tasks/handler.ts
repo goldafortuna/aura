@@ -12,7 +12,7 @@ const createTaskSchema = z.object({
   description: z.string().optional(),
   status: z.string().optional(),
   priority: z.string().optional(),
-  dueDate: z.string().optional(),
+  dueDate: z.string().nullable().optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -22,6 +22,16 @@ const updateTaskSchema = z.object({
   priority: z.string().optional(),
   dueDate: z.string().nullable().optional(),
 });
+
+function parseDueDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value.trim() === '') return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Format tenggat waktu tidak valid.');
+  }
+  return parsed;
+}
 
 app.get('/', async (c) => {
   const dbUser = await requireDbUser(c);
@@ -45,6 +55,12 @@ app.post('/', async (c) => {
   if (!parsed.success) {
     return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
   }
+  let dueDate: Date | null | undefined;
+  try {
+    dueDate = parseDueDate(parsed.data.dueDate);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Format tenggat waktu tidak valid.' }, 400);
+  }
 
   const [created] = await db
     .insert(tasks)
@@ -54,7 +70,7 @@ app.post('/', async (c) => {
       description: parsed.data.description,
       status: parsed.data.status ?? 'todo',
       priority: parsed.data.priority ?? 'medium',
-      dueDate: parsed.data.dueDate,
+      dueDate,
     })
     .returning();
 
@@ -85,10 +101,22 @@ app.patch('/:id', async (c) => {
   if (!parsed.success) {
     return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
   }
+  let dueDate: Date | null | undefined;
+  try {
+    dueDate = parseDueDate(parsed.data.dueDate);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Format tenggat waktu tidak valid.' }, 400);
+  }
+  const { dueDate: _dueDate, ...rest } = parsed.data;
+  const values = {
+    ...rest,
+    ...(dueDate !== undefined ? { dueDate } : {}),
+    updatedAt: new Date(),
+  };
 
   const [updated] = await db
     .update(tasks)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set(values)
     .where(and(eq(tasks.id, id), eq(tasks.userId, dbUser.id)))
     .returning();
 

@@ -1,4 +1,4 @@
-import { date, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 export const tasks = pgTable('tasks', {
@@ -10,7 +10,7 @@ export const tasks = pgTable('tasks', {
   description: text('description'),
   status: text('status').notNull().default('todo'),
   priority: text('priority').notNull().default('medium'),
-  dueDate: date('due_date'),
+  dueDate: timestamp('due_date', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
