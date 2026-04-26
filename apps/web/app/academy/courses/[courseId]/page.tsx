@@ -11,6 +11,7 @@ type Lesson = {
   description: string | null;
   duration: number | null;
   order: number;
+  contentType: 'text' | 'video' | 'slides';
   isCompleted: boolean;
 };
 
@@ -62,6 +63,20 @@ function getModuleHeroClass(order: number) {
     default:
       return 'from-slate-700 to-slate-600';
   }
+}
+
+function getLessonMetaLabel(lesson: Lesson) {
+  if (lesson.contentType === 'text') {
+    return lesson.order === 0 ? 'Pengantar' : 'Text lesson';
+  }
+
+  return `Lesson ${lesson.order}`;
+}
+
+function getLessonFormatLabel(lesson: Lesson) {
+  if (lesson.contentType === 'text') return 'Materi teks';
+  if (lesson.contentType === 'video') return 'Video lesson';
+  return 'PDF lesson';
 }
 
 export default function AcademyCourseDetailPage({ params }: { params: { courseId: string } }) {
@@ -183,12 +198,12 @@ export default function AcademyCourseDetailPage({ params }: { params: { courseId
                         {lesson.isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Lesson {lesson.order}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{getLessonMetaLabel(lesson)}</p>
                         <h3 className="mt-1 font-semibold text-gray-900">{lesson.title}</h3>
                         <p className="mt-1 text-sm leading-6 text-gray-600">{lesson.description ?? 'Materi lesson belum tersedia.'}</p>
                         <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
                           <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {formatDuration(lesson.duration)}</span>
-                          <span className="inline-flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> PDF lesson</span>
+                          <span className="inline-flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" /> {getLessonFormatLabel(lesson)}</span>
                         </div>
                       </div>
                     </div>

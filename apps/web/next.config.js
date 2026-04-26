@@ -1,10 +1,19 @@
 /** @type {import('next').NextConfig} */
 const isDevelopment = process.env.NODE_ENV === 'development';
+const r2PublicHostname = process.env.R2_PUBLIC_BASE_URL
+  ? (() => {
+      try {
+        return new URL(process.env.R2_PUBLIC_BASE_URL).hostname;
+      } catch {
+        return null;
+      }
+    })()
+  : null;
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' ${isDevelopment ? "'unsafe-eval' " : ''}https://*.clerk.com https://*.clerk.accounts.dev https://js.clerk.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev",
+  `img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev${r2PublicHostname ? ` https://${r2PublicHostname}` : ''}`,
   "font-src 'self' data: https:",
   `connect-src 'self' ${isDevelopment ? 'ws: wss: ' : ''}https: https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
   "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com",
@@ -38,6 +47,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.clerk.dev',
       },
+      ...(r2PublicHostname
+        ? [
+            {
+              protocol: 'https',
+              hostname: r2PublicHostname,
+            },
+          ]
+        : []),
     ],
   },
   async headers() {

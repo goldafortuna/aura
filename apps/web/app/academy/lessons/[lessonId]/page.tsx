@@ -10,8 +10,16 @@ type LessonDetail = {
   title: string;
   description: string | null;
   duration: number | null;
+  contentType: 'text' | 'video' | 'slides';
   contentData?: {
+    hero?: {
+      imageUrl?: string;
+      alt?: string;
+      eyebrow?: string;
+      caption?: string;
+    };
     slideRange?: { start?: number; end?: number };
+    sections?: { heading?: string; body?: string; points?: string[] }[];
   } | null;
   module: { id: string; title: string; order: number };
   course: { id: string; title: string; slug: string };
@@ -22,6 +30,14 @@ type LessonDetail = {
 
 function formatDuration(minutes: number | null | undefined) {
   return minutes ? `${minutes} menit` : 'Durasi tidak tersedia';
+}
+
+function getLessonKindLabel(lesson: LessonDetail) {
+  if (lesson.contentType === 'text') {
+    return lesson.title.toLowerCase().includes('pengantar') ? 'Pengantar modul' : 'Text lesson';
+  }
+
+  return 'Lesson PDF';
 }
 
 export default function AcademyLessonPage({ params }: { params: { lessonId: string } }) {
@@ -56,7 +72,8 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
   }, [params.lessonId]);
 
   const markComplete = async () => {
-    if (!lesson || saving || lesson.isCompleted) return;
+    if (!lesson) return false;
+    if (saving || lesson.isCompleted) return lesson.isCompleted;
 
     setSaving(true);
     try {
@@ -68,10 +85,27 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
       if (!res.ok) throw new Error(`Gagal menandai lesson selesai (HTTP ${res.status})`);
 
       setLesson({ ...lesson, isCompleted: true });
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan progres lesson.');
+      return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const continueToLesson = async (targetLessonId: string) => {
+    const completed = await markComplete();
+    if (completed) {
+      router.push(`/academy/lessons/${targetLessonId}`);
+    }
+  };
+
+  const continueToQuiz = async () => {
+    if (!lesson) return;
+    const completed = await markComplete();
+    if (completed) {
+      router.push(`/academy/courses/${lesson.course.id}/modules/${lesson.module.id}/quiz`);
     }
   };
 
@@ -91,7 +125,11 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
   const courseBackHref = `/academy/courses/${lesson.course.id}`;
   const startPage = lesson.contentData?.slideRange?.start ?? 1;
   const endPage = lesson.contentData?.slideRange?.end ?? startPage;
-  const pdfSrc = `/api/academy/lessons/${lesson.id}/asset#page=${startPage}&toolbar=1&navpanes=0`;
+  const pdfSrc = `/api/academy/lessons/${lesson.id}/asset#page=${startPage}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
+  const textSections = Array.isArray(lesson.contentData?.sections) ? lesson.contentData.sections : [];
+  const isTextLesson = lesson.contentType === 'text';
+  const hero = lesson.contentData?.hero;
+  const nextLessonId = lesson.nextLesson?.id ?? null;
 
   return (
     <div className="space-y-6">
@@ -107,13 +145,13 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
       <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-600">Lesson PDF</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-600">{getLessonKindLabel(lesson)}</p>
             <h1 className="mt-2 text-3xl font-bold text-gray-900">{lesson.title}</h1>
             <p className="mt-3 text-sm leading-6 text-gray-600">{lesson.description ?? 'Deskripsi lesson belum tersedia.'}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1"><FileText className="h-3.5 w-3.5" /> PDF viewer</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1"><FileText className="h-3.5 w-3.5" /> {isTextLesson ? 'Materi teks' : 'PDF viewer'}</span>
               <span className="rounded-full bg-gray-100 px-3 py-1">{formatDuration(lesson.duration)}</span>
-              <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">Halaman {startPage}-{endPage}</span>
+              {!isTextLesson ? <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">Halaman {startPage}-{endPage}</span> : null}
               {lesson.isCompleted ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Lesson selesai
@@ -132,25 +170,63 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {lesson.isCompleted ? 'Sudah Selesai' : 'Tandai Selesai'}
             </button>
-            <a
-              href={pdfSrc}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Buka PDF di tab baru
-            </a>
           </div>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-        <iframe
-          src={pdfSrc}
-          title={lesson.title}
-          className="h-[75vh] w-full"
-        />
-      </section>
+      {isTextLesson ? (
+        <section className="rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
+          <div className="space-y-10">
+            {hero?.imageUrl ? (
+              <div className="overflow-hidden rounded-[2rem] border border-sky-100 bg-sky-50">
+                <div className="grid gap-0 lg:grid-cols-[1.25fr_0.85fr]">
+                  <div className="min-h-[300px] bg-slate-100">
+                    <img
+                      src={hero.imageUrl}
+                      alt={hero.alt ?? lesson.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="flex flex-col justify-center gap-4 bg-gradient-to-br from-sky-50 via-cyan-50 to-white p-8">
+                    {hero.eyebrow ? (
+                      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-700">{hero.eyebrow}</p>
+                    ) : null}
+                    <h2 className="text-2xl font-semibold leading-tight text-gray-900">{lesson.module.title}</h2>
+                    <p className="text-base leading-7 text-gray-700">
+                      {hero.caption ?? 'Pelajari fondasi penting yang akan membentuk cara kerja profesionalmu di modul ini.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {textSections.map((section, index) => (
+              <article key={`${section.heading ?? 'section'}-${index}`} className="max-w-4xl space-y-3">
+                <h2 className="text-2xl font-semibold text-gray-900">{section.heading ?? `Bagian ${index + 1}`}</h2>
+                {section.body ? <p className="text-base leading-8 text-gray-700">{section.body}</p> : null}
+                {Array.isArray(section.points) && section.points.length > 0 ? (
+                  <ul className="space-y-3">
+                    {section.points.map((point, pointIndex) => (
+                      <li key={`${section.heading ?? 'section'}-${pointIndex}`} className="flex items-start gap-3 text-base leading-7 text-gray-700">
+                        <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+          <iframe
+            src={pdfSrc}
+            title={lesson.title}
+            className="h-[75vh] w-full"
+          />
+        </section>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -176,7 +252,8 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
           {lesson.nextLesson ? (
             <button
               type="button"
-              onClick={() => router.push(`/academy/lessons/${lesson.nextLesson?.id}`)}
+              onClick={() => nextLessonId ? void continueToLesson(nextLessonId) : undefined}
+              disabled={saving}
               className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-sky-700 hover:text-sky-800"
             >
               {lesson.nextLesson.title}
@@ -185,13 +262,15 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
           ) : (
             <div className="mt-3 space-y-2">
               <p className="text-sm text-gray-500">Ini adalah lesson terakhir pada modul ini.</p>
-              <Link
-                href={courseBackHref}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-sky-700 hover:text-sky-800"
+              <button
+                type="button"
+                onClick={() => void continueToQuiz()}
+                disabled={saving}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-sky-700 hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Kembali ke halaman course
+                Lanjut ke quiz modul
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
             </div>
           )}
         </div>

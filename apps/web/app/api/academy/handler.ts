@@ -5,6 +5,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
 import { db } from '../../../db';
+import { downloadObject } from '../../../lib/objectStorage';
 import {
   academyCourses,
   academyLessons,
@@ -192,10 +193,179 @@ function getLessonAssetPath(contentData: unknown) {
   return typeof assetPath === 'string' && assetPath.trim() ? assetPath.trim() : null;
 }
 
+function getLessonStoragePath(contentData: unknown) {
+  if (!contentData || typeof contentData !== 'object') return null;
+  const storagePath = (contentData as { storagePath?: unknown }).storagePath;
+  return typeof storagePath === 'string' && storagePath.trim() ? storagePath.trim() : null;
+}
+
 function getMimeTypeFromFilePath(filePath: string) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.pdf') return 'application/pdf';
   return 'application/octet-stream';
+}
+
+async function recalculateCourseProgress(userId: string, courseId: string) {
+  const modules = await db
+    .select({ id: academyModules.id })
+    .from(academyModules)
+    .where(eq(academyModules.courseId, courseId))
+    .orderBy(asc(academyModules.order), asc(academyModules.createdAt));
+
+  const moduleIds = modules.map((module) => module.id);
+  if (moduleIds.length === 0) {
+    const [updated] = await db
+      .update(userAcademyProgress)
+      .set({
+        status: 'completed',
+        progressPercentage: 100,
+        lastAccessedAt: new Date(),
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(userAcademyProgress.userId, userId), eq(userAcademyProgress.courseId, courseId)))
+      .returning();
+
+    if (!updated) {
+      await db.insert(userAcademyProgress).values({
+        userId,
+        courseId,
+        status: 'completed',
+        progressPercentage: 100,
+        startedAt: new Date(),
+        lastAccessedAt: new Date(),
+        completedAt: new Date(),
+      });
+    }
+
+    return { progressPercentage: 100, status: 'completed' as const };
+  }
+
+  const [lessons, quizQuestions, completedLessonRows, attemptedQuestionRows] = await Promise.all([
+    db
+      .select({ id: academyLessons.id, moduleId: academyLessons.moduleId })
+      .from(academyLessons)
+      .where(inArray(academyLessons.moduleId, moduleIds)),
+    db
+      .select({ id: academyQuizQuestions.id, moduleId: academyQuizQuestions.moduleId })
+      .from(academyQuizQuestions)
+      .where(inArray(academyQuizQuestions.moduleId, moduleIds)),
+    db
+      .select({ lessonId: userLessonCompletions.lessonId })
+      .from(userLessonCompletions)
+      .innerJoin(academyLessons, eq(userLessonCompletions.lessonId, academyLessons.id))
+      .where(and(eq(userLessonCompletions.userId, userId), inArray(academyLessons.moduleId, moduleIds))),
+    db
+      .select({ questionId: userQuizAttempts.questionId })
+      .from(userQuizAttempts)
+      .innerJoin(academyQuizQuestions, eq(userQuizAttempts.questionId, academyQuizQuestions.id))
+      .where(and(eq(userQuizAttempts.userId, userId), inArray(academyQuizQuestions.moduleId, moduleIds))),
+  ]);
+
+  const completedLessonIds = new Set(completedLessonRows.map((row) => row.lessonId));
+  const attemptedQuestionIds = new Set(attemptedQuestionRows.map((row) => row.questionId));
+
+  let completedUnits = 0;
+  let totalUnits = 0;
+
+  for (const moduleId of moduleIds) {
+    const moduleLessonRows = lessons.filter((lesson) => lesson.moduleId === moduleId);
+    const moduleQuizRows = quizQuestions.filter((question) => question.moduleId === moduleId);
+
+    totalUnits += moduleLessonRows.length;
+    completedUnits += moduleLessonRows.filter((lesson) => completedLessonIds.has(lesson.id)).length;
+
+    if (moduleQuizRows.length > 0) {
+      totalUnits += 1;
+      const quizCompleted = moduleQuizRows.every((question) => attemptedQuestionIds.has(question.id));
+      if (quizCompleted) completedUnits += 1;
+    }
+  }
+
+  const progressPercentage = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
+  const status = progressPercentage >= 100 ? 'completed' : progressPercentage > 0 ? 'in_progress' : 'not_started';
+
+  const [updated] = await db
+    .update(userAcademyProgress)
+    .set({
+      status,
+      progressPercentage,
+      lastAccessedAt: new Date(),
+      completedAt: progressPercentage >= 100 ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(userAcademyProgress.userId, userId), eq(userAcademyProgress.courseId, courseId)))
+    .returning();
+
+  if (!updated) {
+    await db.insert(userAcademyProgress).values({
+      userId,
+      courseId,
+      status,
+      progressPercentage,
+      startedAt: progressPercentage > 0 ? new Date() : null,
+      lastAccessedAt: new Date(),
+      completedAt: progressPercentage >= 100 ? new Date() : null,
+    });
+  }
+
+  return { progressPercentage, status };
+}
+
+async function syncModuleLessonCompletionsFromQuiz(userId: string, moduleId: string) {
+  const [moduleLessons, moduleQuizQuestions] = await Promise.all([
+    db
+      .select({ id: academyLessons.id })
+      .from(academyLessons)
+      .where(eq(academyLessons.moduleId, moduleId)),
+    db
+      .select({ id: academyQuizQuestions.id })
+      .from(academyQuizQuestions)
+      .where(eq(academyQuizQuestions.moduleId, moduleId)),
+  ]);
+
+  if (moduleQuizQuestions.length === 0 || moduleLessons.length === 0) return;
+
+  const attemptedRows = await db
+    .select({ questionId: userQuizAttempts.questionId })
+    .from(userQuizAttempts)
+    .where(and(eq(userQuizAttempts.userId, userId), inArray(userQuizAttempts.questionId, moduleQuizQuestions.map((question) => question.id))));
+
+  const attemptedQuestionIds = new Set(attemptedRows.map((row) => row.questionId));
+  const quizCompleted = moduleQuizQuestions.every((question) => attemptedQuestionIds.has(question.id));
+  if (!quizCompleted) return;
+
+  const existingCompletions = await db
+    .select({ lessonId: userLessonCompletions.lessonId })
+    .from(userLessonCompletions)
+    .where(and(eq(userLessonCompletions.userId, userId), inArray(userLessonCompletions.lessonId, moduleLessons.map((lesson) => lesson.id))));
+
+  const completedLessonIds = new Set(existingCompletions.map((row) => row.lessonId));
+  const missingLessonIds = moduleLessons
+    .map((lesson) => lesson.id)
+    .filter((lessonId) => !completedLessonIds.has(lessonId));
+
+  if (missingLessonIds.length === 0) return;
+
+  await db.insert(userLessonCompletions).values(
+    missingLessonIds.map((lessonId) => ({
+      userId,
+      lessonId,
+      completedAt: new Date(),
+      timeSpent: 0,
+    })),
+  );
+}
+
+async function syncCourseLessonCompletionsFromQuiz(userId: string, courseId: string) {
+  const moduleRows = await db
+    .select({ id: academyModules.id })
+    .from(academyModules)
+    .where(eq(academyModules.courseId, courseId));
+
+  for (const moduleRow of moduleRows) {
+    await syncModuleLessonCompletionsFromQuiz(userId, moduleRow.id);
+  }
 }
 
 async function getAdminCourseDetail(courseId: string) {
@@ -451,6 +621,8 @@ app.get('/courses/:id', async (c) => {
   const [course] = await db.select().from(academyCourses).where(and(eq(academyCourses.id, id), eq(academyCourses.status, 'published'))).limit(1);
   if (!course) return c.json({ error: 'Course not found' }, 404);
 
+  await syncCourseLessonCompletionsFromQuiz(dbUser.id, id);
+
   const modules = await db
     .select()
     .from(academyModules)
@@ -526,17 +698,13 @@ app.get('/courses/:id', async (c) => {
     };
   });
 
-  const [progress] = await db
-    .select()
-    .from(userAcademyProgress)
-    .where(and(eq(userAcademyProgress.userId, dbUser.id), eq(userAcademyProgress.courseId, id)))
-    .limit(1);
+  const progress = await recalculateCourseProgress(dbUser.id, id);
 
   return c.json({
     data: {
       ...course,
       modules: modulesWithContent,
-      userProgress: progress || null,
+      userProgress: progress,
     },
   });
 });
@@ -604,6 +772,23 @@ app.get('/lessons/:lessonId/asset', async (c) => {
   const [lesson] = await db.select().from(academyLessons).where(eq(academyLessons.id, lessonId)).limit(1);
   if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
 
+  const storagePath = getLessonStoragePath(lesson.contentData);
+  if (storagePath) {
+    try {
+      const downloaded = await downloadObject(storagePath);
+      return new Response(Buffer.from(downloaded.body), {
+        headers: {
+          'Content-Type': downloaded.contentType || 'application/pdf',
+          'Content-Disposition': 'inline; filename="lesson.pdf"',
+          'Cache-Control': 'private, max-age=300',
+          'X-Robots-Tag': 'noindex, noarchive, nosnippet',
+        },
+      });
+    } catch {
+      // Fallback ke local asset agar rollout tetap aman bila upload R2 belum lengkap.
+    }
+  }
+
   const assetPath = getLessonAssetPath(lesson.contentData);
   if (!assetPath) return c.json({ error: 'Lesson asset not configured' }, 400);
 
@@ -616,6 +801,7 @@ app.get('/lessons/:lessonId/asset', async (c) => {
         'Content-Type': getMimeTypeFromFilePath(filePath),
         'Content-Disposition': `inline; filename="${path.basename(filePath)}"`,
         'Cache-Control': 'private, max-age=300',
+        'X-Robots-Tag': 'noindex, noarchive, nosnippet',
       },
     });
   } catch {
@@ -735,44 +921,7 @@ app.post('/progress/lessons/:lessonId/complete', async (c) => {
     .limit(1);
   if (!module) return c.json({ error: 'Module not found' }, 404);
 
-  const totalLessonsResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(academyLessons)
-    .where(eq(academyLessons.moduleId, lesson.moduleId));
-
-  const completedLessonsResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(userLessonCompletions)
-    .innerJoin(academyLessons, eq(userLessonCompletions.lessonId, academyLessons.id))
-    .where(and(eq(userLessonCompletions.userId, dbUser.id), eq(academyLessons.moduleId, lesson.moduleId)));
-
-  const totalCount = totalLessonsResult[0]?.count || 0;
-  const completedCount = completedLessonsResult[0]?.count || 0;
-  const progressPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-  const updatedProgress = await db
-    .update(userAcademyProgress)
-    .set({
-      status: progressPercentage >= 100 ? 'completed' : 'in_progress',
-      progressPercentage,
-      lastAccessedAt: new Date(),
-      completedAt: progressPercentage >= 100 ? new Date() : null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(userAcademyProgress.userId, dbUser.id), eq(userAcademyProgress.courseId, module.courseId)))
-    .returning({ id: userAcademyProgress.id });
-
-  if (!updatedProgress[0]) {
-    await db.insert(userAcademyProgress).values({
-      userId: dbUser.id,
-      courseId: module.courseId,
-      status: progressPercentage >= 100 ? 'completed' : 'in_progress',
-      progressPercentage,
-      startedAt: new Date(),
-      lastAccessedAt: new Date(),
-      completedAt: progressPercentage >= 100 ? new Date() : null,
-    });
-  }
+  const progress = await recalculateCourseProgress(dbUser.id, module.courseId);
 
   return c.json({
     data: {
@@ -780,8 +929,8 @@ app.post('/progress/lessons/:lessonId/complete', async (c) => {
       completedAt: new Date(),
       timeSpent: parsed.data.timeSpent || 0,
       courseProgress: {
-        progressPercentage,
-        status: 'in_progress',
+        progressPercentage: progress.progressPercentage,
+        status: progress.status,
       },
     },
   });
@@ -807,6 +956,12 @@ app.post('/quiz/:questionId/attempt', async (c) => {
   }
 
   const isCorrect = parsed.data.selectedOption === question.correctIndex;
+  const [module] = await db
+    .select({ courseId: academyModules.courseId })
+    .from(academyModules)
+    .where(eq(academyModules.id, question.moduleId))
+    .limit(1);
+  if (!module) return c.json({ error: 'Module not found' }, 404);
 
   await db.insert(userQuizAttempts).values({
     userId: dbUser.id,
@@ -815,6 +970,9 @@ app.post('/quiz/:questionId/attempt', async (c) => {
     isCorrect,
     timeSpent: parsed.data.timeSpent || 0,
   });
+
+  await syncModuleLessonCompletionsFromQuiz(dbUser.id, question.moduleId);
+  const progress = await recalculateCourseProgress(dbUser.id, module.courseId);
 
   return c.json({
     data: {
@@ -825,6 +983,7 @@ app.post('/quiz/:questionId/attempt', async (c) => {
       explanation: question.explanation,
       attemptedAt: new Date(),
       timeSpent: parsed.data.timeSpent || 0,
+      courseProgress: progress,
     },
   });
 });

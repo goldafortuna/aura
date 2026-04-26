@@ -24,6 +24,47 @@
       "iconColor": "text-sky-700",
       "lessons": [
         {
+          "order": 0,
+          "title": "Pengantar Modul 1",
+          "description": "Gambaran singkat tentang fokus pembelajaran Modul 1 dan fondasi profesional yang akan dibangun sebelum masuk ke lesson inti.",
+          "duration": 3,
+          "contentType": "text",
+          "contentData": {
+            "type": "text",
+            "hero": {
+              "imageUrl": "https://pub-e951d1d3a86e4a359e3f0da971bbb1e7.r2.dev/academy/heroes/modul-1-pengantar-hero.png",
+              "alt": "Profesional sekretaris modern sedang menyiapkan dokumen dan agenda kerja pimpinan di ruang kantor.",
+              "eyebrow": "Mulai dari fondasi yang tepat",
+              "caption": "Modul ini membangun cara pandang profesional sebelum masuk ke keterampilan teknis sehari-hari."
+            },
+            "sections": [
+              {
+                "heading": "Apa Fokus Modul Ini?",
+                "body": "Modul 1 membahas peran dan identitas sekretaris modern. Kamu akan diajak melihat bagaimana posisi sekretaris berkembang dari peran administratif menjadi mitra strategis pimpinan, sekaligus memahami standar etika dan profesionalisme yang dibutuhkan di lingkungan kerja saat ini."
+              },
+              {
+                "heading": "Hal yang Akan Dipelajari",
+                "body": "Empat topik berikut menjadi fondasi utama sebelum kamu masuk ke praktik kerja sekretaris yang lebih operasional.",
+                "points": [
+                  "Perubahan peran sekretaris dari fungsi administratif menuju mitra strategis pimpinan.",
+                  "Peran strategis sekretaris dalam organisasi dan kontribusinya terhadap efektivitas pimpinan.",
+                  "Tiga pilar etika profesi: kerahasiaan, integritas, dan loyalitas profesional.",
+                  "Pentingnya penampilan, gestur, dan komunikasi dalam membangun citra profesional."
+                ]
+              },
+              {
+                "heading": "Hasil Belajar yang Diharapkan",
+                "body": "Setelah menyelesaikan pengantar dan seluruh lesson Modul 1, kamu diharapkan mulai memiliki pijakan yang jelas tentang identitas profesionalmu.",
+                "points": [
+                  "Memahami posisi strategis sekretaris modern dalam mendukung pimpinan.",
+                  "Mengenali nilai tambah peran sekretaris bagi ritme kerja dan pengambilan keputusan pimpinan.",
+                  "Memiliki gambaran yang lebih jelas tentang sikap, etika, dan standar profesional yang perlu dijaga dalam keseharian kerja."
+                ]
+              }
+            ]
+          }
+        },
+        {
           "order": 1,
           "slug": "sekretaris-dulu-vs-sekarang",
           "title": "Sekretaris Dulu vs. Sekarang",
@@ -69,6 +110,47 @@
       "bgColor": "bg-emerald-50",
       "iconColor": "text-emerald-700",
       "lessons": [
+        {
+          "order": 0,
+          "title": "Pengantar Modul 2",
+          "description": "Gambaran singkat tentang cara mengelola jadwal pimpinan, menetapkan prioritas, dan merespons perubahan agenda secara profesional.",
+          "duration": 3,
+          "contentType": "text",
+          "contentData": {
+            "type": "text",
+            "hero": {
+              "imageUrl": "https://pub-e951d1d3a86e4a359e3f0da971bbb1e7.r2.dev/academy/heroes/modul-2-pengantar-hero.png",
+              "alt": "Sekretaris profesional sedang mengatur kalender pimpinan, agenda meeting, dan dokumen prioritas kerja di meja kantor modern.",
+              "eyebrow": "Menata waktu, menjaga prioritas",
+              "caption": "Modul ini membantu kamu membangun sistem kerja yang rapi agar agenda pimpinan tetap terarah, realistis, dan siap menghadapi perubahan."
+            },
+            "sections": [
+              {
+                "heading": "Apa Fokus Modul Ini?",
+                "body": "Modul 2 membahas manajemen jadwal dan prioritas pimpinan. Fokusnya adalah bagaimana sekretaris mengatur penjadwalan secara cerdas, menjaga waktu pimpinan tetap efektif, dan tetap tenang saat menghadapi perubahan agenda yang mendadak."
+              },
+              {
+                "heading": "Hal yang Akan Dipelajari",
+                "body": "Empat topik berikut akan membantu kamu membangun sistem kerja yang lebih terstruktur dalam mengelola agenda pimpinan.",
+                "points": [
+                  "Memahami kalender pimpinan dengan memetakan agenda harian, mingguan, dan bulanan secara sistematis.",
+                  "Menerapkan teknik prioritas dan time blocking, termasuk Matrix Eisenhower, metode ALPEN, dan pembagian waktu efektif.",
+                  "Mengelola koordinasi rapat dan perjalanan dinas, mulai dari persiapan meeting, itinerary, hingga dokumen perjalanan pimpinan.",
+                  "Memanfaatkan digital tools seperti Google Calendar dan Outlook, sekaligus menyiapkan respons yang tepat saat ada perubahan jadwal mendadak."
+                ]
+              },
+              {
+                "heading": "Hasil Belajar yang Diharapkan",
+                "body": "Setelah menyelesaikan pengantar dan seluruh lesson Modul 2, kamu diharapkan memiliki kerangka kerja yang lebih rapi untuk menjaga ritme agenda pimpinan.",
+                "points": [
+                  "Memahami cara menyusun dan membaca kalender pimpinan secara lebih strategis.",
+                  "Mampu menentukan prioritas agenda dan melindungi waktu kerja pimpinan dari gangguan yang kurang penting.",
+                  "Lebih siap mengelola rapat, perjalanan dinas, dan perubahan jadwal dengan koordinasi yang cepat dan tertata."
+                ]
+              }
+            ]
+          }
+        },
         {
           "order": 1,
           "slug": "memahami-kalender-pimpinan",
@@ -116,6 +198,47 @@
       "iconColor": "text-amber-700",
       "lessons": [
         {
+          "order": 0,
+          "title": "Pengantar Modul 3",
+          "description": "Gambaran singkat tentang komunikasi profesional dan korespondensi yang membantu sekretaris menjaga kesan rapi, jelas, dan terpercaya.",
+          "duration": 3,
+          "contentType": "text",
+          "contentData": {
+            "type": "text",
+            "hero": {
+              "imageUrl": "https://pub-e951d1d3a86e4a359e3f0da971bbb1e7.r2.dev/academy/heroes/modul-3-pengantar-hero.png",
+              "alt": "Sekretaris profesional sedang meninjau surat resmi dan menyiapkan korespondensi bisnis di meja kerja modern.",
+              "eyebrow": "Berkomunikasi dengan jelas dan berkesan",
+              "caption": "Modul ini membantu kamu membangun cara berkomunikasi yang rapi, tepat, dan profesional di setiap saluran kerja."
+            },
+            "sections": [
+              {
+                "heading": "Apa Fokus Modul Ini?",
+                "body": "Modul 3 membahas komunikasi profesional dan korespondensi. Fokusnya adalah bagaimana sekretaris menulis surat resmi, menyusun email bisnis, membuat notulensi yang berguna, dan menjaga komunikasi lisan yang memberi kesan profesional."
+              },
+              {
+                "heading": "Hal yang Akan Dipelajari",
+                "body": "Empat topik berikut akan membantu kamu memperkuat kualitas komunikasi tertulis dan lisan dalam peran sekretaris pimpinan.",
+                "points": [
+                  "Memahami anatomi surat resmi, standar format, jenis-jenis surat dinas, dan bagian-bagian wajibnya.",
+                  "Menyusun email bisnis yang efektif dan berkesan, termasuk struktur, tone, etika digital, dan kesalahan yang perlu dihindari.",
+                  "Membuat notulensi rapat yang benar-benar berguna, mulai dari teknik mencatat hingga distribusi dan follow-up action items.",
+                  "Menghadirkan komunikasi lisan dan citra profesional melalui telepon, penerimaan tamu, presentasi singkat, dan bahasa tubuh."
+                ]
+              },
+              {
+                "heading": "Hasil Belajar yang Diharapkan",
+                "body": "Setelah menyelesaikan pengantar dan seluruh lesson Modul 3, kamu diharapkan lebih siap berkomunikasi secara profesional dalam berbagai situasi kerja.",
+                "points": [
+                  "Memahami standar dasar komunikasi tertulis yang rapi, jelas, dan sesuai konteks profesional.",
+                  "Mampu menyiapkan email, surat, dan notulensi yang lebih mudah dipahami serta lebih siap ditindaklanjuti.",
+                  "Lebih percaya diri menjaga komunikasi lisan dan citra profesional saat berinteraksi dengan pimpinan, tamu, dan rekan kerja."
+                ]
+              }
+            ]
+          }
+        },
+        {
           "order": 1,
           "slug": "anatomi-surat-resmi",
           "title": "Anatomi Surat Resmi dan Standar Format",
@@ -162,6 +285,47 @@
       "iconColor": "text-violet-700",
       "lessons": [
         {
+          "order": 0,
+          "title": "Pengantar Modul 4",
+          "description": "Gambaran singkat tentang cara menata dokumen dan arsip digital agar tetap aman, tertib, dan mudah ditemukan saat dibutuhkan.",
+          "duration": 3,
+          "contentType": "text",
+          "contentData": {
+            "type": "text",
+            "hero": {
+              "imageUrl": "https://pub-e951d1d3a86e4a359e3f0da971bbb1e7.r2.dev/academy/heroes/modul-4-pengantar-hero.png",
+              "alt": "Sekretaris profesional sedang mengatur folder dokumen dan meninjau sistem arsip digital di meja kerja modern.",
+              "eyebrow": "Menjaga dokumen tetap rapi dan aman",
+              "caption": "Modul ini membantu kamu membangun sistem dokumentasi yang tertata, mudah dicari, dan lebih aman di era arsip digital."
+            },
+            "sections": [
+              {
+                "heading": "Apa Fokus Modul Ini?",
+                "body": "Modul 4 membahas manajemen dokumen dan arsip digital. Fokusnya adalah bagaimana sekretaris mengelola dokumen dari tahap penamaan, penyimpanan, pengaturan akses, hingga retensi dan pemusnahan, agar informasi penting selalu siap ketika dibutuhkan."
+              },
+              {
+                "heading": "Hal yang Akan Dipelajari",
+                "body": "Empat topik berikut akan membantumu menjadi pengelola dokumen yang lebih rapi, teliti, dan dapat dipercaya di lingkungan kerja.",
+                "points": [
+                  "Menyusun sistem klasifikasi dan penomoran dokumen agar file mudah ditemukan kapan saja.",
+                  "Mengelola arsip digital dan cloud dengan memilih platform yang tepat seperti Google Drive, SharePoint, atau OneDrive.",
+                  "Menjaga keamanan dokumen dan hak akses melalui password, enkripsi, NDA, dan pembatasan akses yang sesuai.",
+                  "Memahami retensi arsip dan prosedur pemusnahan agar dokumen disimpan selama perlu dan dibuang dengan benar."
+                ]
+              },
+              {
+                "heading": "Hasil Belajar yang Diharapkan",
+                "body": "Setelah menyelesaikan pengantar dan seluruh lesson Modul 4, kamu diharapkan lebih siap menjaga keteraturan dan keamanan dokumen organisasi.",
+                "points": [
+                  "Memahami cara membangun sistem pengelolaan dokumen yang konsisten dan mudah dipakai sehari-hari.",
+                  "Mampu menyimpan dan mengatur arsip digital agar lebih cepat dicari, dibagikan, dan diawasi aksesnya.",
+                  "Lebih percaya diri menjaga siklus hidup dokumen, mulai dari penyimpanan aktif sampai retensi dan pemusnahan."
+                ]
+              }
+            ]
+          }
+        },
+        {
           "order": 1,
           "slug": "klasifikasi-dan-penomoran-dokumen",
           "title": "Sistem Klasifikasi dan Penomoran Dokumen",
@@ -207,6 +371,47 @@
       "bgColor": "bg-fuchsia-50",
       "iconColor": "text-fuchsia-700",
       "lessons": [
+        {
+          "order": 0,
+          "title": "Pengantar Modul 5",
+          "description": "Gambaran singkat tentang bagaimana sekretaris modern memanfaatkan AI, menjaga etika penggunaannya, dan menyiapkan diri untuk masa depan kerja.",
+          "duration": 3,
+          "contentType": "text",
+          "contentData": {
+            "type": "text",
+            "hero": {
+              "imageUrl": "https://pub-e951d1d3a86e4a359e3f0da971bbb1e7.r2.dev/academy/heroes/modul-5-pengantar-hero.png",
+              "alt": "Sekretaris profesional sedang menggunakan laptop dengan bantuan workflow AI dan dashboard produktivitas digital di ruang kerja modern.",
+              "eyebrow": "Siap beradaptasi di era AI",
+              "caption": "Modul ini membantu kamu melihat AI sebagai alat kerja strategis, bukan ancaman, agar tetap relevan dan unggul di masa depan."
+            },
+            "sections": [
+              {
+                "heading": "Apa Fokus Modul Ini?",
+                "body": "Modul 5 membahas peran sekretaris di era AI dan pentingnya adaptasi berkelanjutan. Fokusnya adalah bagaimana memanfaatkan AI untuk memperkuat produktivitas, memahami batas etis penggunaannya, dan menyiapkan kompetensi yang relevan untuk masa depan kerja."
+              },
+              {
+                "heading": "Hal yang Akan Dipelajari",
+                "body": "Empat topik berikut akan membantumu memahami bagaimana AI dapat menjadi alat kerja yang meningkatkan nilai tambah seorang sekretaris modern.",
+                "points": [
+                  "Memahami AI untuk sekretaris sebagai alat bantu kerja, bukan ancaman, serta mengenali tools yang relevan.",
+                  "Mengotomasi tugas berulang dan meningkatkan produktivitas melalui template otomatis, workflow cerdas, dan drafting berbantuan AI.",
+                  "Menjaga etika AI, privasi, dan keamanan data organisasi saat menggunakan tools digital di tempat kerja.",
+                  "Membangun karier sekretaris masa depan dengan kompetensi baru, mindset belajar, komunitas profesional, dan sertifikasi yang tepat."
+                ]
+              },
+              {
+                "heading": "Hasil Belajar yang Diharapkan",
+                "body": "Setelah menyelesaikan pengantar dan seluruh lesson Modul 5, kamu diharapkan lebih siap menghadapi perubahan dunia kerja dengan sikap yang adaptif dan strategis.",
+                "points": [
+                  "Memahami cara memanfaatkan AI secara produktif untuk mendukung pekerjaan sekretaris sehari-hari.",
+                  "Mampu melihat peluang otomasi tanpa mengabaikan batas etika, privasi, dan keamanan informasi organisasi.",
+                  "Lebih percaya diri membangun kompetensi masa depan agar tetap relevan, bernilai tinggi, dan tidak mudah tergantikan."
+                ]
+              }
+            ]
+          }
+        },
         {
           "order": 1,
           "slug": "ai-sebagai-alat-kerja",

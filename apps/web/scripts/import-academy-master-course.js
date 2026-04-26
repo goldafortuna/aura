@@ -10,6 +10,7 @@ config({ path: '.env.local', override: true });
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const academySourceRoot = path.join(workspaceRoot, 'MateriAcademy');
 const configPath = path.join(__dirname, 'academy-master-course.config.json');
+const r2PublicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/$/, '');
 
 function readConfig() {
   return JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -22,6 +23,16 @@ function getModuleSelection() {
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildLessonStoragePath(courseSlug, moduleSlug, lessonOrder, lessonSlug) {
+  return path.posix.join(
+    'academy',
+    'lessons',
+    courseSlug,
+    moduleSlug,
+    `${lessonOrder.toString().padStart(2, '0')}-${lessonSlug}.pdf`,
+  );
 }
 
 function sanitizeInlineMarkdown(value) {
@@ -237,20 +248,31 @@ async function upsertModule(sql, courseId, moduleConfig) {
   return created.id;
 }
 
-async function upsertLesson(sql, moduleId, assetBasePath, moduleConfig, lessonConfig) {
-  const assetPath = path.posix.join(
-    assetBasePath,
-    moduleConfig.slug,
-    `${lessonConfig.order.toString().padStart(2, '0')}-${lessonConfig.slug}.pdf`,
-  );
-
-  const contentData = {
-    type: 'pdf',
-    assetPath,
-    sourceDeck: moduleConfig.sourcePptx,
-    sourcePdf: moduleConfig.sourcePdf ?? null,
-    slideRange: lessonConfig.slideRange,
-  };
+async function upsertLesson(sql, courseSlug, moduleId, assetBasePath, moduleConfig, lessonConfig) {
+  const contentType = lessonConfig.contentType ?? 'slides';
+  const storagePath = contentType === 'text' || !lessonConfig.slug
+    ? null
+    : buildLessonStoragePath(
+      courseSlug,
+      moduleConfig.slug,
+      lessonConfig.order,
+      lessonConfig.slug,
+    );
+  const contentData = contentType === 'text'
+    ? lessonConfig.contentData ?? null
+    : {
+      type: 'pdf',
+      assetPath: path.posix.join(
+        assetBasePath,
+        moduleConfig.slug,
+        `${lessonConfig.order.toString().padStart(2, '0')}-${lessonConfig.slug}.pdf`,
+      ),
+      storagePath,
+      publicUrl: r2PublicBaseUrl && storagePath ? `${r2PublicBaseUrl}/${storagePath}` : null,
+      sourceDeck: moduleConfig.sourcePptx,
+      sourcePdf: moduleConfig.sourcePdf ?? null,
+      slideRange: lessonConfig.slideRange,
+    };
 
   const [existing] = await sql`
     select id
@@ -266,7 +288,7 @@ async function upsertLesson(sql, moduleId, assetBasePath, moduleConfig, lessonCo
         title = ${lessonConfig.title},
         description = ${lessonConfig.description},
         duration = ${lessonConfig.duration},
-        content_type = 'slides',
+        content_type = ${contentType},
         content_data = ${JSON.stringify(contentData)},
         is_required = true,
         updated_at = now()
@@ -291,7 +313,7 @@ async function upsertLesson(sql, moduleId, assetBasePath, moduleConfig, lessonCo
       ${lessonConfig.title},
       ${lessonConfig.description},
       ${lessonConfig.duration},
-      'slides',
+      ${contentType},
       ${JSON.stringify(contentData)},
       ${lessonConfig.order},
       true
@@ -351,7 +373,7 @@ async function main() {
       console.log(`Module ready: ${moduleConfig.order}. ${moduleConfig.title}`);
 
       for (const lessonConfig of moduleConfig.lessons) {
-        await upsertLesson(sql, moduleId, configData.assetBasePath, moduleConfig, lessonConfig);
+        await upsertLesson(sql, configData.course.slug, moduleId, configData.assetBasePath, moduleConfig, lessonConfig);
       }
 
       const quizPath = path.join(academySourceRoot, moduleConfig.quizMarkdown);

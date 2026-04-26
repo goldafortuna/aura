@@ -29,6 +29,10 @@ function copyModulePdfToLessonAssets(moduleConfig, assetBasePath) {
   fs.mkdirSync(moduleOutputDir, { recursive: true });
 
   for (const lesson of moduleConfig.lessons) {
+    if (lesson.contentType === 'text' || !lesson.slug) {
+      continue;
+    }
+
     const fileName = `${String(lesson.order).padStart(2, '0')}-${lesson.slug}.pdf`;
     const destinationPath = path.join(moduleOutputDir, fileName);
     fs.copyFileSync(sourcePdfPath, destinationPath);
