@@ -92,10 +92,11 @@ const quarterFilterOptions = [
 ] as const;
 
 type QuarterFilter = (typeof quarterFilterOptions)[number]['key'];
-type TimeSavingsPeriod = 'daily' | 'monthly' | 'quarterly' | 'yearly';
+type TimeSavingsPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 const timeSavingsPeriodOptions: { key: TimeSavingsPeriod; label: string }[] = [
   { key: 'daily', label: 'Harian' },
+  { key: 'weekly', label: 'Mingguan' },
   { key: 'monthly', label: 'Bulanan' },
   { key: 'quarterly', label: 'Triwulanan' },
   { key: 'yearly', label: '1 Tahun' },
@@ -110,6 +111,12 @@ interface TimeSavingsBreakdown {
 }
 
 interface TimeSavingsSummary {
+  period: TimeSavingsPeriod;
+  year: number;
+  quarter: QuarterFilter;
+  aggregation: {
+    bucketCount: number;
+  };
   totals: {
     events: number;
     manualEstimateMinutes: number;
@@ -119,6 +126,14 @@ interface TimeSavingsSummary {
   };
   breakdown: TimeSavingsBreakdown[];
 }
+
+const timeSavingsPeriodLabelMap: Record<TimeSavingsPeriod, string> = {
+  daily: 'hari',
+  weekly: 'minggu',
+  monthly: 'bulan',
+  quarterly: 'triwulan',
+  yearly: 'tahun',
+};
 
 interface TomorrowEvent {
   id: string;
@@ -417,7 +432,12 @@ export const Dashboard: React.FC = () => {
     const fetchTimeSavings = async () => {
       setTimeSavingsLoading(true);
       try {
-        const res = await fetch(`/api/analytics/time-savings?period=${timeSavingsPeriod}`, { cache: 'no-store' });
+        const params = new URLSearchParams({
+          period: timeSavingsPeriod,
+          year: String(selectedYear),
+          quarter: selectedQuarter,
+        });
+        const res = await fetch(`/api/analytics/time-savings?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) return;
         const json = (await res.json()) as { data: TimeSavingsSummary };
         setTimeSavings(json.data);
@@ -429,7 +449,7 @@ export const Dashboard: React.FC = () => {
     };
 
     void fetchTimeSavings();
-  }, [timeSavingsPeriod]);
+  }, [selectedQuarter, selectedYear, timeSavingsPeriod]);
 
   const availableYears = useMemo(() => {
     const years = new Set<number>([currentYear]);
@@ -540,6 +560,11 @@ export const Dashboard: React.FC = () => {
   }, [filteredDocuments, filteredTasks]);
 
   const chartHasData = chartData.some((row) => row.dokumen > 0 || row.tugas > 0);
+  const timeSavingsPeriodLabel = timeSavingsPeriodLabelMap[timeSavingsPeriod];
+  const timeSavingsBucketCount = timeSavings?.aggregation.bucketCount ?? 0;
+  const timeSavingsAveragingHint = timeSavingsBucketCount > 0
+    ? `Rata-rata per ${timeSavingsPeriodLabel} dari ${timeSavingsBucketCount.toLocaleString('id-ID')} ${timeSavingsPeriodLabel} aktif pada filter dashboard`
+    : `Belum ada data pada filter dashboard untuk tampilan ${timeSavingsPeriodLabel}`;
 
   const recentActivities = useMemo(() => {
     const documentActivities: ActivityItem[] = filteredDocuments.map((doc) => {
@@ -730,7 +755,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-800">Waktu Dihemat</h2>
-              <p className="text-xs text-gray-500">Estimasi konservatif dari otomasi AURA pada periode terpilih</p>
+              <p className="text-xs text-gray-500">{timeSavingsAveragingHint}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -771,7 +796,7 @@ export const Dashboard: React.FC = () => {
                   <span className="ml-1 text-lg font-normal text-emerald-600">jam</span>
                 </p>
                 <p className="mt-1 text-xs text-emerald-600">
-                  {(timeSavings?.totals.savedMinutes ?? 0).toLocaleString('id-ID')} menit · {timeSavings?.totals.events ?? 0} event
+                  {(timeSavings?.totals.savedMinutes ?? 0).toLocaleString('id-ID')} menit · {(timeSavings?.totals.events ?? 0).toLocaleString('id-ID')} event/{timeSavingsPeriodLabel}
                 </p>
               </div>
               {(timeSavings?.breakdown ?? []).map((item) => {
@@ -784,7 +809,7 @@ export const Dashboard: React.FC = () => {
                       <span className="ml-1 text-sm font-normal text-gray-500">menit</span>
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      {item.count.toLocaleString('id-ID')} event · {item.savedHours.toLocaleString('id-ID')} jam
+                      {item.count.toLocaleString('id-ID')} event/{timeSavingsPeriodLabel} · {item.savedHours.toLocaleString('id-ID')} jam
                     </p>
                   </div>
                 );

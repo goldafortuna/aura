@@ -12,6 +12,9 @@ import {
   Loader2,
   Copy,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -80,7 +83,6 @@ function parseAiReviewPayload(value: unknown): AiReviewPayload | null {
 function mapApiDocumentsToUi(json: { data: ApiDocument[] }): Document[] {
   return json.data.map((doc) => {
     const aiReview = parseAiReviewPayload(doc.findingsJson);
-
     return {
       id: doc.id,
       filename: doc.filename,
@@ -131,10 +133,18 @@ interface Document {
 }
 
 const statusOptions: { label: string; value: DocumentStatus; badge: string }[] = [
-  { label: 'Memproses', value: 'processing', badge: 'bg-warning/10 text-orange-700' },
-  { label: 'Direview', value: 'reviewed', badge: 'bg-success/10 text-green-700' },
-  { label: 'Perlu Revisi', value: 'error', badge: 'bg-error/10 text-red-700' },
+  { label: 'Memproses', value: 'processing', badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  { label: 'Direview', value: 'reviewed', badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  { label: 'Perlu Revisi', value: 'error', badge: 'bg-red-50 text-red-700 border border-red-200' },
 ];
+
+const statusBorderMap: Record<DocumentStatus, string> = {
+  processing: 'border-l-amber-400',
+  reviewed: 'border-l-emerald-400',
+  error: 'border-l-red-400',
+};
+
+const ITEMS_PER_PAGE = 8;
 
 const bytesToSize = (bytes: number) => {
   if (!bytes) return '0 B';
@@ -199,7 +209,6 @@ function formatReviewPlainTextForShare(doc: Document): string {
 async function readApiErrorMessage(res: Response, fallback: string) {
   const text = await res.text();
   if (!text.trim()) return `${fallback} (HTTP ${res.status})`;
-
   try {
     const json = JSON.parse(text) as { error?: unknown; message?: unknown };
     const msg =
@@ -232,6 +241,69 @@ const defaultFormState: DocumentFormState = {
   ambiguousCount: '0',
 };
 
+function buildPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '...')[] = [];
+  pages.push(1);
+  if (current > 3) pages.push('...');
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (current < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
+
+interface ActionButtonProps {
+  onClick: () => void;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  variant?: 'default' | 'danger';
+  disabled?: boolean;
+}
+
+const ActionButton: React.FC<ActionButtonProps> = ({ onClick, title, icon: Icon, variant = 'default', disabled }) => (
+  <motion.button
+    whileHover={{ scale: disabled ? 1 : 1.1 }}
+    whileTap={{ scale: disabled ? 1 : 0.9 }}
+    onClick={onClick}
+    title={title}
+    disabled={disabled}
+    className={`rounded-lg p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+      variant === 'danger'
+        ? 'text-red-400 hover:bg-red-50 hover:text-red-600'
+        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
+    }`}
+  >
+    <Icon className="h-4 w-4" />
+  </motion.button>
+);
+
+interface PaginationBtnProps {
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  children: React.ReactNode;
+  ariaLabel?: string;
+}
+
+const PaginationBtn: React.FC<PaginationBtnProps> = ({ onClick, disabled, active, children, ariaLabel }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={ariaLabel}
+    className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-1.5 text-xs font-semibold transition-colors ${
+      active
+        ? 'bg-primary-600 text-white shadow-sm'
+        : disabled
+        ? 'cursor-not-allowed text-slate-300'
+        : 'text-slate-600 hover:bg-primary/10 hover:text-primary-700'
+    }`}
+  >
+    {children}
+  </button>
+);
+
 export const DocumentReview: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,11 +324,11 @@ export const DocumentReview: React.FC = () => {
   const [rowCopyDocId, setRowCopyDocId] = useState<string | null>(null);
   const [batchInfo, setBatchInfo] = useState<{ batchId: string; status: string } | null>(null);
   const [batchSyncing, setBatchSyncing] = useState(false);
-
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState<DocumentFormState>(defaultFormState);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchDocuments = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
@@ -265,12 +337,8 @@ export const DocumentReview: React.FC = () => {
         setLoading(true);
         setError(null);
       }
-
       const res = await fetch('/api/documents', { cache: 'no-store' });
-      if (!res.ok) {
-        throw new Error(await readApiErrorMessage(res, 'Gagal memuat dokumen'));
-      }
-
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal memuat dokumen'));
       const json = (await res.json()) as { data: ApiDocument[] };
       setDocuments(mapApiDocumentsToUi(json));
     } catch (err) {
@@ -280,18 +348,13 @@ export const DocumentReview: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    void fetchDocuments();
-  }, [fetchDocuments]);
+  useEffect(() => { void fetchDocuments(); }, [fetchDocuments]);
 
   const loadAiProviders = useCallback(async () => {
     setAiProvidersLoading(true);
     try {
       const res = await fetch('/api/ai/providers', { cache: 'no-store' });
-      if (!res.ok) {
-        setAiProviders([]);
-        return;
-      }
+      if (!res.ok) { setAiProviders([]); return; }
       const json = (await res.json()) as { data: AiProviderListItem[] };
       setAiProviders(json.data ?? []);
     } catch {
@@ -301,30 +364,20 @@ export const DocumentReview: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    void loadAiProviders();
-  }, [loadAiProviders]);
+  useEffect(() => { void loadAiProviders(); }, [loadAiProviders]);
 
   useEffect(() => {
     let cancelled = false;
-
     const loadStorageInfo = async () => {
       try {
         const res = await fetch('/api/storage/provider', { cache: 'no-store' });
         if (!res.ok) return;
         const json = (await res.json()) as { data?: StorageInfo };
-        if (!cancelled && json.data) {
-          setStorageInfo(json.data);
-        }
-      } catch {
-        // Keep indicator hidden when storage info is unavailable.
-      }
+        if (!cancelled && json.data) setStorageInfo(json.data);
+      } catch { /* keep hidden */ }
     };
-
     void loadStorageInfo();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const activeProviderId = useMemo(() => aiProviders.find((p) => p.isActive)?.provider ?? '', [aiProviders]);
@@ -350,43 +403,25 @@ export const DocumentReview: React.FC = () => {
       setAnalyzingDocIds((prev) => ({ ...prev, [docId]: true }));
       setDocuments((prev) =>
         prev.map((d) =>
-          d.id === docId
-            ? {
-                ...d,
-                status: 'processing',
-                analysisError: null,
-                typoCount: 0,
-                ambiguousCount: 0,
-                aiReview: null,
-              }
-            : d,
+          d.id === docId ? { ...d, status: 'processing', analysisError: null, typoCount: 0, ambiguousCount: 0, aiReview: null } : d,
         ),
       );
-
       const res = await fetch(`/api/documents/${docId}/analyze`, { method: 'POST' });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal menjalankan review AI'));
-
       const bodyJson = (await res.json()) as { data: ApiDocument };
       const mapped = mapApiDocumentsToUi({ data: [bodyJson.data] })[0];
       if (!mapped) throw new Error('Gagal memuat hasil review');
-
       setDocuments((prev) => prev.map((d) => (d.id === docId ? mapped : d)));
       setFindingsDoc((prev) => (prev?.id === docId ? mapped : prev));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
       await fetchDocuments({ silent: true });
     } finally {
-      setAnalyzingDocIds((prev) => {
-        const next = { ...prev };
-        delete next[docId];
-        return next;
-      });
+      setAnalyzingDocIds((prev) => { const next = { ...prev }; delete next[docId]; return next; });
     }
   };
 
-  useEffect(() => {
-    setFindingsCopyState('idle');
-  }, [findingsDoc?.id]);
+  useEffect(() => { setFindingsCopyState('idle'); }, [findingsDoc?.id]);
 
   const handleCopyFindingsText = async () => {
     if (!findingsDoc) return;
@@ -405,20 +440,16 @@ export const DocumentReview: React.FC = () => {
       setError(null);
       await copyTextToClipboard(formatReviewPlainTextForShare(doc));
       setRowCopyDocId(doc.id);
-      window.setTimeout(() => {
-        setRowCopyDocId((prev) => (prev === doc.id ? null : prev));
-      }, 2000);
+      window.setTimeout(() => { setRowCopyDocId((prev) => (prev === doc.id ? null : prev)); }, 2000);
     } catch {
-      setError('Gagal menyalin ke clipboard. Coba lagi atau salin dari modal detail.');
+      setError('Gagal menyalin ke clipboard.');
     }
   };
 
   useEffect(() => {
     if (!batchInfo?.batchId) return;
     if (batchSyncing) return;
-
     let cancelled = false;
-
     const tick = async () => {
       try {
         const res = await fetch(`/api/ai/batches/${batchInfo.batchId}`, { cache: 'no-store' });
@@ -426,101 +457,74 @@ export const DocumentReview: React.FC = () => {
         const json = (await res.json()) as { data?: { processingStatus?: string } };
         const st = json.data?.processingStatus ?? 'in_progress';
         if (cancelled) return;
-
         setBatchInfo((prev) => (prev ? { ...prev, status: st } : prev));
         if (st === 'ended') {
           setBatchSyncing(true);
           const syncRes = await fetch(`/api/ai/batches/${batchInfo.batchId}/sync`, { method: 'POST' });
-          if (!cancelled && syncRes.ok) {
-            setBatchInfo(null);
-            await fetchDocuments();
-          }
+          if (!cancelled && syncRes.ok) { setBatchInfo(null); await fetchDocuments(); }
         }
       } finally {
         if (!cancelled) setBatchSyncing(false);
       }
     };
-
     void tick();
     const interval = window.setInterval(() => void tick(), 30_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
+    return () => { cancelled = true; window.clearInterval(interval); };
   }, [batchInfo?.batchId, batchSyncing, fetchDocuments]);
 
-  const hasProcessingDocuments = useMemo(
-    () => documents.some((d) => d.status === 'processing'),
-    [documents],
-  );
+  const hasProcessingDocuments = useMemo(() => documents.some((d) => d.status === 'processing'), [documents]);
 
   useEffect(() => {
     if (!hasProcessingDocuments) return;
-
-    const id = window.setInterval(() => {
-      void fetchDocuments({ silent: true });
-    }, 8000);
-
+    const id = window.setInterval(() => { void fetchDocuments({ silent: true }); }, 8000);
     return () => window.clearInterval(id);
   }, [hasProcessingDocuments, fetchDocuments]);
 
   const stats = useMemo(() => {
     const total = documents.length;
     const reviewed = documents.filter((doc) => doc.status === 'reviewed').length;
-    const findings = documents.reduce(
-      (acc, doc) => acc + doc.typoCount + doc.ambiguousCount,
-      0,
-    );
+    const findings = documents.reduce((acc, doc) => acc + doc.typoCount + doc.ambiguousCount, 0);
     return { total, reviewed, findings };
   }, [documents]);
 
-  /** Jalankan review AI setelah baris dokumen sudah ada (status memproses di UI). */
+  useEffect(() => { setCurrentPage(1); }, [documents.length]);
+
+  const totalPages = Math.ceil(documents.length / ITEMS_PER_PAGE);
+  const paginatedDocuments = useMemo(
+    () => documents.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [documents, currentPage],
+  );
+
   const runUploadedDocumentsAnalysis = async (createdIds: string[]) => {
     if (createdIds.length === 0) return;
-
     if (createdIds.length >= 2) {
       const batchRes = await fetch('/api/documents/batch-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: createdIds }),
       });
-
       if (batchRes.ok) {
         const json = (await batchRes.json()) as { data?: { batchId?: string; processingStatus?: string } };
         const batchId = json.data?.batchId;
-        if (batchId) {
-          setBatchInfo({ batchId, status: json.data?.processingStatus ?? 'in_progress' });
-        }
+        if (batchId) setBatchInfo({ batchId, status: json.data?.processingStatus ?? 'in_progress' });
       } else {
         for (const docId of createdIds) {
           const analyzeRes = await fetch(`/api/documents/${docId}/analyze`, { method: 'POST' });
-          if (!analyzeRes.ok) {
-            throw new Error(await readApiErrorMessage(analyzeRes, 'Gagal menjalankan review AI'));
-          }
+          if (!analyzeRes.ok) throw new Error(await readApiErrorMessage(analyzeRes, 'Gagal menjalankan review AI'));
         }
       }
     } else {
       const analyzeRes = await fetch(`/api/documents/${createdIds[0]}/analyze`, { method: 'POST' });
-      if (!analyzeRes.ok) {
-        throw new Error(await readApiErrorMessage(analyzeRes, 'Gagal menjalankan review AI'));
-      }
+      if (!analyzeRes.ok) throw new Error(await readApiErrorMessage(analyzeRes, 'Gagal menjalankan review AI'));
     }
   };
 
   const uploadAndCreateDocuments = async (files: FileList | File[]) => {
     const list = Array.from(files ?? []);
     if (list.length === 0) return;
-
-    if (list.length > 5) {
-      setError('Maksimal 5 dokumen per upload.');
-      return;
-    }
-
+    if (list.length > 5) { setError('Maksimal 5 dokumen per upload.'); return; }
     const tooLarge = list.find((f) => f.size > 10 * 1024 * 1024);
-    if (tooLarge) {
-      setError(`File terlalu besar: ${tooLarge.name}. Maks 10MB.`);
-      return;
-    }
+    if (tooLarge) { setError(`File terlalu besar: ${tooLarge.name}. Maks 10MB.`); return; }
 
     setUploading(true);
     setError(null);
@@ -528,26 +532,18 @@ export const DocumentReview: React.FC = () => {
     try {
       const form = new FormData();
       for (const f of list) form.append('files', f);
-
       const uploadRes = await fetch('/api/uploads/documents', { method: 'POST', body: form });
       const rawBody = await uploadRes.text();
       let uploadJson: unknown = null;
       if (rawBody.trim()) {
-        try {
-          uploadJson = JSON.parse(rawBody) as unknown;
-        } catch {
-          throw new Error(`Gagal upload dokumen (HTTP ${uploadRes.status}). Respons bukan JSON.`);
-        }
+        try { uploadJson = JSON.parse(rawBody) as unknown; }
+        catch { throw new Error(`Gagal upload dokumen (HTTP ${uploadRes.status}). Respons bukan JSON.`); }
       }
-
       if (!uploadRes.ok) {
-        const errMsg =
-          uploadJson && typeof uploadJson === 'object' && 'error' in uploadJson
-            ? String((uploadJson as { error?: unknown }).error ?? '')
-            : '';
+        const errMsg = uploadJson && typeof uploadJson === 'object' && 'error' in uploadJson
+          ? String((uploadJson as { error?: unknown }).error ?? '') : '';
         throw new Error(errMsg || `Gagal upload dokumen (HTTP ${uploadRes.status}).`);
       }
-
       if (!uploadJson || typeof uploadJson !== 'object' || !('data' in uploadJson)) {
         throw new Error('Gagal upload dokumen (respons tidak valid).');
       }
@@ -557,26 +553,14 @@ export const DocumentReview: React.FC = () => {
         const res = await fetch('/api/documents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: u.filename,
-            fileType: u.fileType,
-            fileSize: u.fileSize,
-            storagePath: u.storagePath,
-            status: 'processing',
-            typoCount: 0,
-            ambiguousCount: 0,
-          }),
+          body: JSON.stringify({ filename: u.filename, fileType: u.fileType, fileSize: u.fileSize, storagePath: u.storagePath, status: 'processing', typoCount: 0, ambiguousCount: 0 }),
         });
-        if (!res.ok) {
-          throw new Error(await readApiErrorMessage(res, 'Gagal menyimpan metadata dokumen'));
-        }
-
+        if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal menyimpan metadata dokumen'));
         const createdJson = (await res.json()) as { data?: { id?: string } };
         const docId = createdJson.data?.id;
         if (!docId) throw new Error('Gagal menyimpan metadata dokumen (ID tidak dikembalikan).');
         createdIds.push(docId);
       }
-
       await fetchDocuments({ silent: true });
       idsToAnalyze = createdIds;
     } catch (err) {
@@ -585,9 +569,7 @@ export const DocumentReview: React.FC = () => {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-
     if (idsToAnalyze.length === 0) return;
-
     void (async () => {
       try {
         await runUploadedDocumentsAnalysis(idsToAnalyze);
@@ -601,27 +583,16 @@ export const DocumentReview: React.FC = () => {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      void uploadAndCreateDocuments(e.dataTransfer.files);
-    }
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) void uploadAndCreateDocuments(e.dataTransfer.files);
   };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = () => setIsDragging(false);
 
   const handleOpenEdit = (doc: Document) => {
     setEditingId(doc.id);
     setEditForm({
-      filename: doc.filename,
-      fileType: doc.fileType,
-      fileSize: String(doc.fileSize),
-      storagePath: doc.storagePath,
-      status: doc.status,
-      typoCount: String(doc.typoCount),
+      filename: doc.filename, fileType: doc.fileType, fileSize: String(doc.fileSize),
+      storagePath: doc.storagePath, status: doc.status, typoCount: String(doc.typoCount),
       ambiguousCount: String(doc.ambiguousCount),
     });
     setShowEditModal(true);
@@ -630,11 +601,9 @@ export const DocumentReview: React.FC = () => {
   const handleUpdateDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingId) return;
-
     try {
       setSubmitting(true);
       setError(null);
-
       const payload = {
         filename: editForm.filename.trim() || undefined,
         fileType: editForm.fileType.trim() || undefined,
@@ -644,15 +613,10 @@ export const DocumentReview: React.FC = () => {
         typoCount: Number(editForm.typoCount),
         ambiguousCount: Number(editForm.ambiguousCount),
       };
-
       const res = await fetch(`/api/documents/${editingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
-
       if (!res.ok) throw new Error('Gagal memperbarui dokumen.');
-
       setShowEditModal(false);
       setEditingId(null);
       await fetchDocuments();
@@ -678,9 +642,7 @@ export const DocumentReview: React.FC = () => {
   const fetchSignedUrl = async (id: string) => {
     const res = await fetch(`/api/documents/${id}/signed-url`, { cache: 'no-store' });
     const json = (await res.json()) as { data?: { url: string }; error?: string };
-    if (!res.ok || !json.data?.url) {
-      throw new Error(json.error || 'Gagal membuat link file.');
-    }
+    if (!res.ok || !json.data?.url) throw new Error(json.error || 'Gagal membuat link file.');
     return json.data.url;
   };
 
@@ -703,109 +665,121 @@ export const DocumentReview: React.FC = () => {
       setError(null);
       const url = await fetchSignedUrl(doc.id);
       const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noreferrer';
-      a.download = doc.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      a.href = url; a.target = '_blank'; a.rel = 'noreferrer'; a.download = doc.filename;
+      document.body.appendChild(a); a.click(); a.remove();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan.');
     }
   };
 
-  const openFindings = (doc: Document) => {
-    setFindingsDoc(doc);
-  };
+  const openFindings = (doc: Document) => setFindingsDoc(doc);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+
+      {/* ── Page Header ───────────────────────────────────────── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Review Dokumen</h1>
-          <p className="text-gray-500">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-sm">
+              <FileText className="h-4.5 w-4.5 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-800">Review Dokumen</h1>
+          </div>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
             Upload dan review dokumen dengan bantuan AI untuk deteksi typo dan kalimat ambigu.
           </p>
           {storageInfo ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold uppercase tracking-wide text-gray-500">Storage aktif</span>
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${storageProviderBadgeClass(storageInfo.provider)}`}
-              >
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Storage</span>
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${storageProviderBadgeClass(storageInfo.provider)}`}>
                 {storageProviderLabel(storageInfo.provider)}
               </span>
               {storageInfo.bucket ? (
-                <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 font-medium text-gray-600">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-500">
                   Bucket: {storageInfo.bucket}
                 </span>
               ) : null}
             </div>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <span className="text-xs font-semibold text-gray-500">Model</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative inline-flex items-center">
-                <select
-                  className="max-w-[min(100vw-4rem,280px)] cursor-pointer appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-9 text-xs font-semibold text-gray-800 shadow-sm outline-none transition-colors hover:border-gray-300 focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  value={activeProviderId}
-                  onChange={(e) => void handleActivateProvider(e.target.value)}
-                  disabled={aiProvidersLoading || providerActivating || aiProviders.length === 0}
-                  aria-label="Pilih model AI aktif"
-                >
-                  {aiProvidersLoading ? (
-                    <option value="">Memuat…</option>
-                  ) : (
-                    <>
-                      <option value="" disabled={Boolean(activeProviderId)}>
-                        Pilih model aktif
+
+        <div className="flex shrink-0 flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Model AI</span>
+            <div className="relative">
+              <select
+                className="h-9 max-w-[200px] cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm outline-none transition hover:border-slate-300 focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
+                value={activeProviderId}
+                onChange={(e) => void handleActivateProvider(e.target.value)}
+                disabled={aiProvidersLoading || providerActivating || aiProviders.length === 0}
+                aria-label="Pilih model AI aktif"
+              >
+                {aiProvidersLoading ? (
+                  <option value="">Memuat…</option>
+                ) : (
+                  <>
+                    <option value="" disabled={Boolean(activeProviderId)}>Pilih model</option>
+                    {aiProviders.map((p) => (
+                      <option key={p.provider} value={p.provider} disabled={!p.hasApiKey}>
+                        {shortModelLabel(p)}{!p.hasApiKey ? ' (no key)' : ''}
                       </option>
-                      {aiProviders.map((p) => (
-                        <option key={p.provider} value={p.provider} disabled={!p.hasApiKey}>
-                          {shortModelLabel(p)}
-                          {!p.hasApiKey ? ' (API key belum diset)' : ''}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-                {providerActivating ? (
-                  <Loader2 className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-gray-500" aria-hidden />
-                ) : null}
+                    ))}
+                  </>
+                )}
+              </select>
+              <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                {providerActivating
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                  : <ChevronRight className="h-3.5 w-3.5 rotate-90 text-slate-400" />
+                }
               </div>
             </div>
             {!aiProvidersLoading && !aiProviders.some((p) => p.hasApiKey) ? (
-              <p className="text-xs text-orange-700">Belum ada API key. Buka halaman Pengaturan dari menu untuk mengisi provider.</p>
+              <p className="text-xs text-amber-600">Belum ada API key. Buka Pengaturan.</p>
             ) : null}
           </div>
+
           <button
-            onClick={() => {
-              fileInputRef.current?.click();
-            }}
+            onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 rounded-xl border border-primary-700/30 bg-primary-600 px-5 py-2.5 font-semibold text-white shadow-md ring-1 ring-black/5 transition-all hover:bg-primary-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-semibold text-white shadow-sm ring-1 ring-black/5 transition-all hover:bg-primary-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Upload className="h-5 w-5" />
-            {uploading ? 'Mengupload...' : 'Tambah Dokumen'}
+            <Upload className="h-4 w-4" />
+            {uploading ? 'Mengupload…' : 'Tambah Dokumen'}
           </button>
         </div>
       </div>
 
+      {/* ── Error Banner ──────────────────────────────────────── */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" aria-hidden />
+          <p className="flex-1 text-sm text-red-700">{error}</p>
+          <button onClick={() => setError(null)} className="shrink-0 text-red-400 transition hover:text-red-600">
+            <X className="h-4 w-4" />
+          </button>
+        </motion.div>
       )}
 
+      {/* ── Batch Info ────────────────────────────────────────── */}
       {batchInfo ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
-          Review sedang diproses via <strong>Anthropic Batch</strong>. Batch ID: <span className="font-mono">{batchInfo.batchId}</span>.
-          <div className="mt-2 flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-indigo-800">
+            <Loader2 className="h-4 w-4 animate-spin text-indigo-500" aria-hidden />
+            <span>
+              Review Batch AI sedang diproses —{' '}
+              <span className="font-mono text-xs text-indigo-600">{batchInfo.batchId}</span>
+            </span>
+          </div>
+          <div className="flex gap-2">
             <button
               type="button"
-              className="rounded-lg bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm ring-1 ring-indigo-200 transition hover:bg-indigo-50"
               onClick={async () => {
                 try {
                   const res = await fetch(`/api/ai/batches/${batchInfo.batchId}`, { cache: 'no-store' });
@@ -815,28 +789,20 @@ export const DocumentReview: React.FC = () => {
                     setBatchInfo((prev) => (prev ? { ...prev, status: st } : prev));
                     if (st === 'ended') {
                       const syncRes = await fetch(`/api/ai/batches/${batchInfo.batchId}/sync`, { method: 'POST' });
-                      if (syncRes.ok) {
-                        setBatchInfo(null);
-                        await fetchDocuments();
-                      }
+                      if (syncRes.ok) { setBatchInfo(null); await fetchDocuments(); }
                     }
                   }
-                } catch {
-                  // ignore
-                }
+                } catch { /* ignore */ }
               }}
             >
-              Cek status batch ({batchInfo.status})
+              Cek status ({batchInfo.status})
             </button>
             <button
               type="button"
-              className="rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary-700 hover:bg-primary/20"
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
               onClick={async () => {
                 const res = await fetch(`/api/ai/batches/${batchInfo.batchId}/sync`, { method: 'POST' });
-                if (res.ok) {
-                  setBatchInfo(null);
-                  await fetchDocuments();
-                }
+                if (res.ok) { setBatchInfo(null); await fetchDocuments(); }
               }}
             >
               Sinkronkan hasil
@@ -845,31 +811,34 @@ export const DocumentReview: React.FC = () => {
         </div>
       ) : null}
 
+      {/* ── Upload Zone ───────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`rounded-2xl border-2 border-dashed p-12 text-center transition-all ${
-          isDragging ? 'border-primary-500 bg-primary/5' : 'border-gray-300 bg-gradient-to-br from-primary/5 to-secondary/5'
+        className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-200 ${
+          isDragging
+            ? 'scale-[1.01] border-primary-400 bg-primary/5'
+            : 'border-slate-200 bg-gradient-to-b from-slate-50/80 to-white hover:border-primary-300 hover:bg-primary/5'
         }`}
       >
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20">
-          <Upload className="h-8 w-8 text-primary-600" />
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-100 to-primary-200 shadow-sm">
+          <Upload className={`h-7 w-7 transition-colors ${isDragging ? 'text-primary-700' : 'text-primary-500'}`} />
         </div>
-        <h3 className="mb-2 text-lg font-semibold text-gray-800">Drag & Drop atau Klik untuk Upload</h3>
-        <p className="mb-4 text-sm text-gray-500">
-          Mendukung PDF, DOCX • Maksimal 10MB per file • Upload hingga 5 dokumen sekaligus
+        <h3 className="mb-1.5 text-base font-semibold text-slate-700">
+          {isDragging ? 'Lepaskan file di sini' : 'Drag & Drop atau Klik untuk Upload'}
+        </h3>
+        <p className="mb-5 text-sm text-slate-400">
+          Mendukung PDF, DOCX &bull; Maksimal 10 MB per file &bull; Hingga 5 dokumen sekaligus
         </p>
         <button
-          onClick={() => {
-            fileInputRef.current?.click();
-          }}
+          onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="rounded-xl border border-gray-300 bg-white px-6 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {uploading ? 'Mengupload...' : 'Pilih File'}
+          {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengupload…</> : 'Pilih File'}
         </button>
         <input
           ref={fileInputRef}
@@ -877,201 +846,157 @@ export const DocumentReview: React.FC = () => {
           multiple
           accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="hidden"
-          onChange={(e) => {
-            if (e.target.files) void uploadAndCreateDocuments(e.target.files);
-          }}
+          onChange={(e) => { if (e.target.files) void uploadAndCreateDocuments(e.target.files); }}
         />
       </motion.div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* ── Stats ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[
-          {
-            icon: FileText,
-            value: loading ? '—' : stats.total,
-            label: 'Total Dokumen',
-            bg: 'bg-primary/10',
-            text: 'text-primary-600',
-          },
-          {
-            icon: CheckCircle,
-            value: loading ? '—' : stats.reviewed,
-            label: 'Sudah Direview',
-            bg: 'bg-success/10',
-            text: 'text-green-600',
-          },
-          {
-            icon: AlertTriangle,
-            value: loading ? '—' : stats.findings,
-            label: 'Total Temuan',
-            bg: 'bg-warning/10',
-            text: 'text-orange-600',
-          },
+          { icon: FileText, value: loading ? '—' : stats.total, label: 'Total Dokumen', iconBg: 'bg-violet-100', iconColor: 'text-violet-600' },
+          { icon: CheckCircle, value: loading ? '—' : stats.reviewed, label: 'Sudah Direview', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+          { icon: AlertTriangle, value: loading ? '—' : stats.findings, label: 'Total Temuan', iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
         ].map((item, idx) => {
           const Icon = item.icon;
           return (
             <motion.div
               key={item.label}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+              transition={{ delay: idx * 0.08 }}
+              className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"
             >
-              <div className="flex items-center gap-4">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.bg}`}>
-                  <Icon className={`h-6 w-6 ${item.text}`} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-800">{item.value}</h3>
-                  <p className="text-sm text-gray-500">{item.label}</p>
-                </div>
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${item.iconBg}`}>
+                <Icon className={`h-6 w-6 ${item.iconColor}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-800">{item.value}</p>
+                <p className="text-xs font-medium text-slate-500">{item.label}</p>
               </div>
             </motion.div>
           );
         })}
       </div>
 
+      {/* ── Document List ─────────────────────────────────────── */}
       {loading ? (
-        <div className="text-sm text-gray-500">Memuat dokumen...</div>
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-12 text-sm text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Memuat dokumen…
+        </div>
       ) : (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+          className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm"
         >
-          <div className="border-b border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-800">Dokumen Terbaru</h2>
+          {/* Card header */}
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-bold text-slate-800">Dokumen Terbaru</h2>
+              {documents.length > 0 && (
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500">
+                  {documents.length}
+                </span>
+              )}
+            </div>
+            {totalPages > 1 && (
+              <p className="text-xs text-slate-400">
+                Halaman <span className="font-semibold text-slate-600">{currentPage}</span> dari{' '}
+                <span className="font-semibold text-slate-600">{totalPages}</span>
+              </p>
+            )}
           </div>
 
-          <div className="divide-y divide-gray-200">
-            {documents.map((doc, index) => {
+          {/* Document rows */}
+          <div className="divide-y divide-slate-50">
+            {paginatedDocuments.map((doc, index) => {
               const isRetrying = Boolean(analyzingDocIds[doc.id]);
               const effectiveStatus: DocumentStatus = isRetrying ? 'processing' : doc.status;
-              const statusMeta =
-                statusOptions.find((item) => item.value === effectiveStatus) ?? statusOptions[0];
+              const statusMeta = statusOptions.find((item) => item.value === effectiveStatus) ?? statusOptions[0];
+              const borderColor = statusBorderMap[effectiveStatus];
               return (
                 <motion.div
                   key={doc.id}
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="p-6 transition-colors hover:bg-gray-50"
+                  transition={{ delay: index * 0.04 }}
+                  className={`border-l-[3px] px-6 py-4 transition-colors hover:bg-slate-50/70 ${borderColor}`}
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20">
-                        <FileText className="h-6 w-6 text-primary-600" />
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    {/* Left: icon + info */}
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-100 to-primary-200">
+                        <FileText className="h-5 w-5 text-primary-600" />
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-800">{doc.filename}</h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                          <span>{doc.fileType}</span>
-                          <span>•</span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-semibold text-slate-800" title={doc.filename}>
+                          {doc.filename}
+                        </h3>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
+                          <span className="font-medium text-slate-500">{doc.fileType}</span>
+                          <span>·</span>
                           <span>{doc.sizeLabel}</span>
-                          <span>•</span>
+                          <span>·</span>
                           <span>{formatDate(doc.uploadDate)}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => openFindings(doc)}
-                            className="rounded-lg px-2 py-1 text-left hover:bg-gray-100"
-                            title="Lihat detail temuan"
+                            className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+                            title="Lihat detail typo"
                           >
-                            Typo:{' '}
-                            <strong className="text-error-600">{doc.typoCount}</strong>
+                            Typo: {doc.typoCount}
                           </button>
                           <button
                             type="button"
                             onClick={() => openFindings(doc)}
-                            className="rounded-lg px-2 py-1 text-left hover:bg-gray-100"
-                            title="Lihat detail temuan"
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+                            title="Lihat detail ambigu"
                           >
-                            Ambigu:{' '}
-                            <strong className="text-warning-700">{doc.ambiguousCount}</strong>
+                            Ambigu: {doc.ambiguousCount}
                           </button>
                           <button
                             type="button"
                             onClick={() => void handleCopyRowFindings(doc)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-                            title="Salin ringkasan & temuan (mis. untuk WhatsApp)"
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
+                            title="Salin ringkasan & temuan"
                           >
                             {rowCopyDocId === doc.id ? (
-                              <>
-                                <Check className="h-3.5 w-3.5 text-green-600" aria-hidden />
-                                Tersalin
-                              </>
+                              <><Check className="h-3 w-3 text-emerald-600" aria-hidden />Tersalin</>
                             ) : (
-                              <>
-                                <Copy className="h-3.5 w-3.5" aria-hidden />
-                                Salin
-                              </>
+                              <><Copy className="h-3 w-3" aria-hidden />Salin</>
                             )}
                           </button>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <span className={`rounded-lg px-3 py-1 text-xs font-medium ${statusMeta.badge}`}>
+                    {/* Right: status + actions */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusMeta.badge}`}>
                         {statusMeta.label}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
                         {doc.status === 'error' ? (
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                          <button
                             onClick={() => void handleRetryAnalyze(doc.id)}
                             disabled={isRetrying}
-                            className="inline-flex items-center gap-2 rounded-lg bg-error/10 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-error/20 disabled:cursor-not-allowed disabled:opacity-60"
-                            title={doc.analysisError ? `Error: ${doc.analysisError}` : 'Review ulang'}
+                            className="mr-1 inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            title={doc.analysisError ?? 'Review ulang'}
                           >
-                            {isRetrying ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                Memproses…
-                              </>
-                            ) : (
-                              'Review ulang'
-                            )}
-                          </motion.button>
+                            {isRetrying
+                              ? <><Loader2 className="h-3 w-3 animate-spin" />Memproses…</>
+                              : <><RefreshCw className="h-3 w-3" />Ulang</>
+                            }
+                          </button>
                         ) : null}
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => void handlePreview(doc)}
-                          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-primary/10"
-                          title="Lihat"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => void handleDownload(doc)}
-                          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-primary/10"
-                          title="Unduh"
-                        >
-                          <Download className="h-5 w-5" />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleOpenEdit(doc)}
-                          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-primary/10"
-                          title="Edit"
-                        >
-                          <Pencil className="h-5 w-5" />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => void handleDeleteDocument(doc.id)}
-                          className="rounded-lg p-2 text-red-600 transition-colors hover:bg-error/10"
-                          title="Hapus"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </motion.button>
+                        <ActionButton onClick={() => void handlePreview(doc)} title="Preview" icon={Eye} />
+                        <ActionButton onClick={() => void handleDownload(doc)} title="Unduh" icon={Download} />
+                        <ActionButton onClick={() => handleOpenEdit(doc)} title="Edit" icon={Pencil} />
+                        <ActionButton onClick={() => void handleDeleteDocument(doc.id)} title="Hapus" icon={Trash2} variant="danger" />
                       </div>
                     </div>
                   </div>
@@ -1080,25 +1005,78 @@ export const DocumentReview: React.FC = () => {
             })}
 
             {documents.length === 0 && (
-              <div className="p-6 text-center text-sm text-gray-400">Belum ada dokumen.</div>
+              <div className="flex flex-col items-center gap-3 py-16 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+                  <FileText className="h-7 w-7 text-slate-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Belum ada dokumen</p>
+                  <p className="mt-1 text-xs text-slate-400">Upload dokumen pertama untuk memulai review AI</p>
+                </div>
+              </div>
             )}
           </div>
+
+          {/* ── Pagination ──────────────────────────────────────── */}
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-6 py-3">
+              <p className="text-xs text-slate-400">
+                Menampilkan{' '}
+                <span className="font-semibold text-slate-600">
+                  {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, documents.length)}
+                </span>{' '}
+                dari <span className="font-semibold text-slate-600">{documents.length}</span> dokumen
+              </p>
+              <div className="flex items-center gap-1">
+                <PaginationBtn
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  disabled={currentPage === 1}
+                  ariaLabel="Halaman sebelumnya"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </PaginationBtn>
+                {buildPageNumbers(currentPage, totalPages).map((page, idx) =>
+                  page === '...' ? (
+                    <span key={`e-${idx}`} className="w-7 select-none text-center text-xs text-slate-400">
+                      …
+                    </span>
+                  ) : (
+                    <PaginationBtn
+                      key={page}
+                      onClick={() => setCurrentPage(page as number)}
+                      active={currentPage === page}
+                    >
+                      {page}
+                    </PaginationBtn>
+                  ),
+                )}
+                <PaginationBtn
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  disabled={currentPage === totalPages}
+                  ariaLabel="Halaman berikutnya"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </PaginationBtn>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 
+      {/* ── Modals ────────────────────────────────────────────── */}
       <AnimatePresence>
         {previewUrl && (
           <Modal
             title={previewTitle || 'Preview Dokumen'}
-            onClose={() => {
-              setPreviewUrl(null);
-              setPreviewTitle('');
-            }}
+            onClose={() => { setPreviewUrl(null); setPreviewTitle(''); }}
           >
             {previewLoading ? (
-              <div className="text-sm text-gray-600">Menyiapkan preview...</div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Menyiapkan preview…
+              </div>
             ) : (
-              <div className="h-[70vh] overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+              <div className="h-[70vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                 <iframe title="Document preview" src={previewUrl} className="h-full w-full" />
               </div>
             )}
@@ -1114,49 +1092,40 @@ export const DocumentReview: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void handleCopyFindingsText()}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 title="Salin ringkasan & temuan ke clipboard"
               >
                 {findingsCopyState === 'ok' ? (
-                  <>
-                    <Check className="h-4 w-4 text-green-600" aria-hidden />
-                    Tersalin
-                  </>
+                  <><Check className="h-4 w-4 text-emerald-600" aria-hidden />Tersalin</>
                 ) : (
-                  <>
-                    <Copy className="h-4 w-4" aria-hidden />
-                    Salin
-                  </>
+                  <><Copy className="h-4 w-4" aria-hidden />Salin</>
                 )}
               </button>
             }
           >
             <div className="space-y-4">
-              <p className="text-xs text-gray-500">
-                Ringkasan dan daftar temuan bisa disalin (tombol di atas) untuk tempel ke WhatsApp atau aplikasi lain.
+              <p className="text-xs text-slate-500">
+                Ringkasan dan daftar temuan bisa disalin untuk tempel ke WhatsApp atau aplikasi lain.
               </p>
               {findingsCopyState === 'fail' ? (
                 <p className="text-xs text-red-600">
-                  Gagal menyalin (izin clipboard atau konteks tidak aman). Gunakan tombol Salin di daftar dokumen atau coba lagi.
+                  Gagal menyalin (izin clipboard atau konteks tidak aman). Coba lagi.
                 </p>
               ) : null}
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 <div className="flex flex-wrap gap-3">
-                  <span>
-                    Typo: <strong className="text-red-700">{findingsDoc.typoCount}</strong>
-                  </span>
-                  <span>
-                    Ambigu: <strong className="text-orange-700">{findingsDoc.ambiguousCount}</strong>
-                  </span>
-                  <span className="text-gray-500">Status: {findingsDoc.status}</span>
+                  <span>Typo: <strong className="text-red-700">{findingsDoc.typoCount}</strong></span>
+                  <span>Ambigu: <strong className="text-amber-700">{findingsDoc.ambiguousCount}</strong></span>
+                  <span className="text-slate-400">Status: {findingsDoc.status}</span>
                 </div>
                 {findingsDoc.analysisError ? (
                   <p className="mt-2 text-xs text-red-700">Error analisa: {findingsDoc.analysisError}</p>
                 ) : findingsDoc.aiReview?.summary ? (
-                  <p className="mt-2 text-xs text-gray-600">Ringkasan: {findingsDoc.aiReview.summary}</p>
+                  <p className="mt-2 text-xs text-slate-600">Ringkasan: {findingsDoc.aiReview.summary}</p>
                 ) : (
-                  <p className="mt-2 text-xs text-gray-500">
-                    Belum ada hasil analisa tersimpan untuk dokumen ini (jalankan ulang upload atau tunggu proses analisa).
+                  <p className="mt-2 text-xs text-slate-400">
+                    Belum ada hasil analisa tersimpan. Jalankan ulang upload atau tunggu proses analisa.
                   </p>
                 )}
               </div>
@@ -1164,41 +1133,37 @@ export const DocumentReview: React.FC = () => {
               <div className="space-y-3">
                 {(findingsDoc.aiReview?.findings ?? []).length ? (
                   findingsDoc.aiReview!.findings.map((f, idx) => (
-                    <div key={`${f.kind}-${idx}`} className="rounded-xl border border-gray-200 bg-white p-4">
+                    <div key={`${f.kind}-${idx}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900">
-                            Temuan #{idx + 1} • {f.kind === 'typo' ? 'Typo' : 'Ambigu'}
+                          <p className="text-sm font-semibold text-slate-800">
+                            Temuan #{idx + 1} &bull; {f.kind === 'typo' ? 'Typo' : 'Ambigu'}
                           </p>
-                          <p className="mt-1 text-xs text-gray-600">
-                            Lokasi: {f.locationHint} • Severity: {f.severity}
-                            {typeof f.confidence === 'number' ? ` • Confidence: ${f.confidence.toFixed(2)}` : ''}
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Lokasi: {f.locationHint} &bull; Severity: {f.severity}
+                            {typeof f.confidence === 'number' ? ` · Confidence: ${f.confidence.toFixed(2)}` : ''}
                           </p>
                         </div>
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                          AI
-                        </span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">AI</span>
                       </div>
-
                       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                          <p className="text-xs font-semibold text-gray-700">Teks Asli</p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs text-gray-700">{f.originalText}</p>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-xs font-semibold text-slate-600">Teks Asli</p>
+                          <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{f.originalText}</p>
                         </div>
-                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                          <p className="text-xs font-semibold text-green-800">Saran Perbaikan</p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs text-green-800">{f.suggestedText}</p>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                          <p className="text-xs font-semibold text-emerald-800">Saran Perbaikan</p>
+                          <p className="mt-1 whitespace-pre-wrap text-xs text-emerald-800">{f.suggestedText}</p>
                         </div>
                       </div>
-
-                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <p className="text-xs font-semibold text-blue-900">Penjelasan</p>
-                        <p className="mt-1 text-xs text-blue-900">{f.explanation}</p>
+                      <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                        <p className="text-xs font-semibold text-blue-800">Penjelasan</p>
+                        <p className="mt-1 text-xs text-blue-800">{f.explanation}</p>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-600">
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-400">
                     Tidak ada daftar temuan tersimpan untuk dokumen ini.
                   </div>
                 )}
@@ -1211,82 +1176,43 @@ export const DocumentReview: React.FC = () => {
           <Modal onClose={() => setShowEditModal(false)} title="Edit Dokumen">
             <form className="space-y-4" onSubmit={handleUpdateDocument}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {[
+                  { label: 'Nama Dokumen', field: 'filename' as const, type: 'text', required: true },
+                  { label: 'Jenis', field: 'fileType' as const, type: 'text', required: true },
+                  { label: 'Ukuran (byte)', field: 'fileSize' as const, type: 'number' },
+                  { label: 'Path Penyimpanan', field: 'storagePath' as const, type: 'text' },
+                  { label: 'Jumlah Typo', field: 'typoCount' as const, type: 'number' },
+                  { label: 'Jumlah Ambigu', field: 'ambiguousCount' as const, type: 'number' },
+                ].map(({ label, field, type, required }) => (
+                  <div key={field}>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-600">{label}</label>
+                    <input
+                      type={type}
+                      min={type === 'number' ? 0 : undefined}
+                      required={required}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
+                      value={editForm[field]}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, [field]: e.target.value }))}
+                    />
+                  </div>
+                ))}
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Nama Dokumen</label>
-                  <input
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    value={editForm.filename}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, filename: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Jenis</label>
-                  <input
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    value={editForm.fileType}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, fileType: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Ukuran (byte)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    value={editForm.fileSize}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, fileSize: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Path Penyimpanan</label>
-                  <input
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    value={editForm.storagePath}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, storagePath: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Status</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">Status</label>
                   <select
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
                     value={editForm.status}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value as DocumentStatus }))}
                   >
                     {statusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
+                      <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Typo</label>
-                  <input
-                    type="number"
-                    min={0}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    value={editForm.typoCount}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, typoCount: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Ambigu</label>
-                  <input
-                    type="number"
-                    min={0}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    value={editForm.ambiguousCount}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, ambiguousCount: e.target.value }))}
-                  />
-                </div>
               </div>
-
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                  className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
                   onClick={() => setShowEditModal(false)}
                 >
                   Batal
@@ -1294,9 +1220,9 @@ export const DocumentReview: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {submitting ? 'Menyimpan...' : 'Perbarui'}
+                  {submitting ? 'Menyimpan…' : 'Perbarui'}
                 </button>
               </div>
             </form>
@@ -1313,24 +1239,20 @@ interface ModalProps {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  /** Panel dibatasi tinggi viewport; konten di bawah header di-scroll. */
   scrollable?: boolean;
-  /** Tombol/aksi di header (mis. Salin), tetap terlihat bersama judul & tutup. */
   headerAccessory?: React.ReactNode;
 }
 
 const Modal: React.FC<ModalProps> = ({ title, onClose, children, scrollable, headerAccessory }) => {
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
   return (
     <motion.div
-      className={`fixed inset-0 z-50 flex justify-center bg-black/50 p-4 ${
+      className={`fixed inset-0 z-50 flex justify-center bg-black/40 p-4 backdrop-blur-sm ${
         scrollable ? 'items-start overflow-y-auto pt-6 sm:items-center sm:py-6' : 'items-center overflow-y-auto'
       }`}
       initial={{ opacity: 0 }}
@@ -1343,26 +1265,27 @@ const Modal: React.FC<ModalProps> = ({ title, onClose, children, scrollable, hea
       <motion.div
         className={
           scrollable
-            ? 'my-auto flex w-full max-w-2xl max-h-[min(92dvh,56rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl'
-            : 'w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl'
+            ? 'my-auto flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5'
+            : 'w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-black/5'
         }
-        initial={{ scale: 0.95, y: 20 }}
+        initial={{ scale: 0.96, y: 16 }}
         animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.95, y: 20 }}
+        exit={{ scale: 0.96, y: 16 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
           className={
             scrollable
-              ? 'flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4'
-              : 'mb-6 flex items-center justify-between gap-3'
+              ? 'flex shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4'
+              : 'mb-5 flex items-center justify-between gap-3'
           }
         >
           <h3
             className={
               scrollable
-                ? 'min-w-0 flex-1 truncate text-left text-base font-bold text-gray-800 sm:text-lg'
-                : 'pr-2 text-xl font-bold text-gray-800'
+                ? 'min-w-0 flex-1 truncate text-base font-bold text-slate-800'
+                : 'text-lg font-bold text-slate-800'
             }
           >
             {title}
@@ -1372,15 +1295,15 @@ const Modal: React.FC<ModalProps> = ({ title, onClose, children, scrollable, hea
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100"
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               aria-label="Tutup"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
         {scrollable ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
         ) : (
           children
         )}
