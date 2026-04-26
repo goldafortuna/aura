@@ -56,6 +56,69 @@ function buildMockPlannerData() {
   const weekRange = getWeekRangeInJakarta();
   const monthRange = getMonthRangeInJakarta();
 
+  const agendaTemplates = [
+    ['Briefing pagi pimpinan', 'Ruang Kerja Pimpinan', 'Briefing ringkas agenda dan isu prioritas hari berjalan.'],
+    ['Rapat koordinasi internal', 'Ruang Rapat Utama', 'Sinkronisasi agenda pimpinan dengan sekretariat dan unit pendukung.'],
+    ['Audiensi mitra strategis', 'Ruang Tamu Pimpinan', 'Pertemuan dengan mitra strategis untuk tindak lanjut program.'],
+    ['Review dokumen prioritas', 'Ruang Kerja Sekretariat', 'Pemeriksaan dokumen yang perlu disposisi atau persetujuan pimpinan.'],
+    ['Kunjungan lapangan', 'Lokasi Program', 'Pendampingan agenda eksternal atau peninjauan lapangan pimpinan.'],
+    ['Evaluasi penutup hari', 'Ruang Rapat Kecil', 'Rekap hasil agenda dan tindak lanjut untuk hari berikutnya.'],
+  ] as const;
+
+  function createMockEventsForDay(range: { dateUtcMidnight: Date }, dayKey: string, count: number, startHour: number) {
+    return Array.from({ length: count }, (_, index) => {
+      const template = agendaTemplates[index % agendaTemplates.length];
+      const hour = startHour + index * 2;
+      const startMs = range.dateUtcMidnight.getTime() + hour * 60 * 60 * 1000;
+      return {
+        id: `mock-primary|${dayKey}-${index + 1}`,
+        googleEventId: `${dayKey}-${index + 1}`,
+        calendarId: 'mock-primary',
+        calendarSummary: 'Kalender Pimpinan',
+        title: template[0],
+        timeRange: `${String(hour).padStart(2, '0')}:00â€“${String(hour + 1).padStart(2, '0')}:00`,
+        location: template[1],
+        description: template[2],
+        isAllDay: false,
+        startMs,
+      } satisfies MockCalendarEvent;
+    });
+  }
+
+  const todayEvents = createMockEventsForDay(todayRange, 'today', 5, 8);
+  const tomorrowEvents = createMockEventsForDay(tomorrowRange, 'tomorrow', 6, 8);
+  const weekEvents = [...todayEvents, ...tomorrowEvents].sort((a, b) => a.startMs - b.startMs);
+  const monthEvents = [...todayEvents, ...tomorrowEvents].sort((a, b) => a.startMs - b.startMs);
+
+  return {
+    today: {
+      events: todayEvents,
+      warnings: [] as string[],
+      tanggalLabel: todayRange.tanggalLabel,
+      hariLabel: todayRange.hariLabel,
+      tanggalShort: todayRange.tanggalShort,
+      dateIso: todayRange.timeMin.slice(0, 10),
+    },
+    tomorrow: {
+      events: tomorrowEvents,
+      warnings: [] as string[],
+      tanggalLabel: tomorrowRange.tanggalLabel,
+      hariLabel: tomorrowRange.hariLabel,
+      tanggalShort: tomorrowRange.tanggalShort,
+      dateIso: tomorrowRange.timeMin.slice(0, 10),
+    },
+    week: {
+      events: weekEvents,
+      warnings: [] as string[],
+      weekLabel: weekRange.weekLabel,
+    },
+    month: {
+      events: monthEvents,
+      warnings: [] as string[],
+      monthLabel: monthRange.monthLabel,
+    },
+  };
+
   const todayEvent: MockCalendarEvent = {
     id: 'mock-primary|today-1',
     googleEventId: 'today-1',
