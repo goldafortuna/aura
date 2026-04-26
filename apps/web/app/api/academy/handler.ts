@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import path from 'path';
 import { z } from 'zod';
 import { db } from '../../../db';
 import {
@@ -20,7 +23,7 @@ const completeLessonSchema = z.object({
 });
 
 const quizAttemptSchema = z.object({
-  selectedOption: z.number().int().min(0).max(3),
+  selectedOption: z.number().int().nonnegative(),
   timeSpent: z.number().int().positive().optional(),
 });
 
@@ -173,6 +176,26 @@ function partialQuizQuestionValues(data: Partial<z.infer<typeof adminQuizQuestio
   if (data.difficulty !== undefined) values.difficulty = data.difficulty ?? 'medium';
   if (data.order !== undefined) values.order = data.order;
   return values;
+}
+
+function getWorkspaceAcademyRoot() {
+  const candidates = [
+    path.resolve(process.cwd(), 'MateriAcademy'),
+    path.resolve(process.cwd(), '..', '..', '..', 'MateriAcademy'),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}
+
+function getLessonAssetPath(contentData: unknown) {
+  if (!contentData || typeof contentData !== 'object') return null;
+  const assetPath = (contentData as { assetPath?: unknown }).assetPath;
+  return typeof assetPath === 'string' && assetPath.trim() ? assetPath.trim() : null;
+}
+
+function getMimeTypeFromFilePath(filePath: string) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.pdf') return 'application/pdf';
+  return 'application/octet-stream';
 }
 
 async function getAdminCourseDetail(courseId: string) {
@@ -434,6 +457,75 @@ app.get('/courses/:id', async (c) => {
     .where(eq(academyModules.courseId, id))
     .orderBy(academyModules.order);
 
+  const moduleIds = modules.map((module) => module.id);
+  const lessons = moduleIds.length
+    ? await db
+      .select()
+      .from(academyLessons)
+      .where(inArray(academyLessons.moduleId, moduleIds))
+      .orderBy(asc(academyLessons.order), asc(academyLessons.createdAt))
+    : [];
+
+  const quizQuestions = moduleIds.length
+    ? await db
+      .select()
+      .from(academyQuizQuestions)
+      .where(inArray(academyQuizQuestions.moduleId, moduleIds))
+      .orderBy(asc(academyQuizQuestions.order), asc(academyQuizQuestions.createdAt))
+    : [];
+
+  const lessonIds = lessons.map((lesson) => lesson.id);
+  const completedRows = lessonIds.length
+    ? await db
+      .select({ lessonId: userLessonCompletions.lessonId })
+      .from(userLessonCompletions)
+      .where(and(eq(userLessonCompletions.userId, dbUser.id), inArray(userLessonCompletions.lessonId, lessonIds)))
+    : [];
+
+  const attemptedRows = moduleIds.length
+    ? await db
+      .select({
+        moduleId: academyQuizQuestions.moduleId,
+        questionId: academyQuizQuestions.id,
+      })
+      .from(userQuizAttempts)
+      .innerJoin(academyQuizQuestions, eq(userQuizAttempts.questionId, academyQuizQuestions.id))
+      .where(and(eq(userQuizAttempts.userId, dbUser.id), inArray(academyQuizQuestions.moduleId, moduleIds)))
+    : [];
+
+  const completedLessonIds = new Set(completedRows.map((row) => row.lessonId));
+  const attemptedQuestionIds = new Set(attemptedRows.map((row) => row.questionId));
+  const lessonsByModule = new Map<string, typeof lessons>();
+  const quizByModule = new Map<string, typeof quizQuestions>();
+
+  for (const lesson of lessons) {
+    const bucket = lessonsByModule.get(lesson.moduleId) ?? [];
+    bucket.push(lesson);
+    lessonsByModule.set(lesson.moduleId, bucket);
+  }
+
+  for (const question of quizQuestions) {
+    const bucket = quizByModule.get(question.moduleId) ?? [];
+    bucket.push(question);
+    quizByModule.set(question.moduleId, bucket);
+  }
+
+  const modulesWithContent = modules.map((module) => {
+    const moduleLessons = (lessonsByModule.get(module.id) ?? []).map((lesson) => ({
+      ...lesson,
+      isCompleted: completedLessonIds.has(lesson.id),
+    }));
+    const moduleQuiz = quizByModule.get(module.id) ?? [];
+
+    return {
+      ...module,
+      lessons: moduleLessons,
+      quizQuestionCount: moduleQuiz.length,
+      completedLessons: moduleLessons.filter((lesson) => lesson.isCompleted).length,
+      quizCompleted: moduleQuiz.length > 0 && moduleQuiz.every((question) => attemptedQuestionIds.has(question.id)),
+    };
+  });
+
   const [progress] = await db
     .select()
     .from(userAcademyProgress)
@@ -443,8 +535,147 @@ app.get('/courses/:id', async (c) => {
   return c.json({
     data: {
       ...course,
-      modules,
+      modules: modulesWithContent,
       userProgress: progress || null,
+    },
+  });
+});
+
+app.get('/lessons/:lessonId', async (c) => {
+  const dbUser = await requireSecretary(c);
+  if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+
+  const lessonId = c.req.param('lessonId');
+  const [lesson] = await db.select().from(academyLessons).where(eq(academyLessons.id, lessonId)).limit(1);
+  if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
+
+  const [module] = await db.select().from(academyModules).where(eq(academyModules.id, lesson.moduleId)).limit(1);
+  if (!module) return c.json({ error: 'Module not found' }, 404);
+
+  const [course] = await db
+    .select()
+    .from(academyCourses)
+    .where(and(eq(academyCourses.id, module.courseId), eq(academyCourses.status, 'published')))
+    .limit(1);
+  if (!course) return c.json({ error: 'Course not found' }, 404);
+
+  const [moduleLessons, completion] = await Promise.all([
+    db
+      .select()
+      .from(academyLessons)
+      .where(eq(academyLessons.moduleId, module.id))
+      .orderBy(asc(academyLessons.order), asc(academyLessons.createdAt)),
+    db
+      .select({ lessonId: userLessonCompletions.lessonId })
+      .from(userLessonCompletions)
+      .where(and(eq(userLessonCompletions.userId, dbUser.id), eq(userLessonCompletions.lessonId, lessonId)))
+      .limit(1),
+  ]);
+
+  const currentIndex = moduleLessons.findIndex((item) => item.id === lessonId);
+  const previousLesson = currentIndex > 0 ? moduleLessons[currentIndex - 1] : null;
+  const nextLesson = currentIndex >= 0 && currentIndex < moduleLessons.length - 1 ? moduleLessons[currentIndex + 1] : null;
+
+  return c.json({
+    data: {
+      ...lesson,
+      module: {
+        id: module.id,
+        title: module.title,
+        order: module.order,
+      },
+      course: {
+        id: course.id,
+        title: course.title,
+        slug: course.slug,
+      },
+      previousLesson: previousLesson ? { id: previousLesson.id, title: previousLesson.title } : null,
+      nextLesson: nextLesson ? { id: nextLesson.id, title: nextLesson.title } : null,
+      isCompleted: Boolean(completion),
+    },
+  });
+});
+
+app.get('/lessons/:lessonId/asset', async (c) => {
+  const dbUser = await requireSecretary(c);
+  if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+
+  const lessonId = c.req.param('lessonId');
+  const [lesson] = await db.select().from(academyLessons).where(eq(academyLessons.id, lessonId)).limit(1);
+  if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
+
+  const assetPath = getLessonAssetPath(lesson.contentData);
+  if (!assetPath) return c.json({ error: 'Lesson asset not configured' }, 400);
+
+  const filePath = path.resolve(getWorkspaceAcademyRoot(), assetPath);
+
+  try {
+    const fileBuffer = await readFile(filePath);
+    return new Response(fileBuffer, {
+      headers: {
+        'Content-Type': getMimeTypeFromFilePath(filePath),
+        'Content-Disposition': `inline; filename="${path.basename(filePath)}"`,
+        'Cache-Control': 'private, max-age=300',
+      },
+    });
+  } catch {
+    return c.json({ error: 'Lesson asset not found' }, 404);
+  }
+});
+
+app.get('/modules/:moduleId/quiz', async (c) => {
+  const dbUser = await requireSecretary(c);
+  if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+
+  const moduleId = c.req.param('moduleId');
+  const [module] = await db.select().from(academyModules).where(eq(academyModules.id, moduleId)).limit(1);
+  if (!module) return c.json({ error: 'Module not found' }, 404);
+
+  const [course, questions, attempts] = await Promise.all([
+    db
+      .select()
+      .from(academyCourses)
+      .where(and(eq(academyCourses.id, module.courseId), eq(academyCourses.status, 'published')))
+      .limit(1),
+    db
+      .select()
+      .from(academyQuizQuestions)
+      .where(eq(academyQuizQuestions.moduleId, moduleId))
+      .orderBy(asc(academyQuizQuestions.order), asc(academyQuizQuestions.createdAt)),
+    db
+      .select({
+        questionId: userQuizAttempts.questionId,
+        selectedOption: userQuizAttempts.selectedOption,
+        isCorrect: userQuizAttempts.isCorrect,
+      })
+      .from(userQuizAttempts)
+      .innerJoin(academyQuizQuestions, eq(userQuizAttempts.questionId, academyQuizQuestions.id))
+      .where(and(eq(userQuizAttempts.userId, dbUser.id), eq(academyQuizQuestions.moduleId, moduleId))),
+  ]);
+
+  if (!course[0]) return c.json({ error: 'Course not found' }, 404);
+
+  const attemptsByQuestion = new Map(attempts.map((attempt) => [attempt.questionId, attempt]));
+
+  return c.json({
+    data: {
+      module: {
+        id: module.id,
+        title: module.title,
+        order: module.order,
+      },
+      course: {
+        id: course[0].id,
+        title: course[0].title,
+      },
+      questions: questions.map((question) => ({
+        id: question.id,
+        question: question.question,
+        options: question.options,
+        order: question.order,
+        explanation: question.explanation,
+        attempt: attemptsByQuestion.get(question.id) ?? null,
+      })),
     },
   });
 });
@@ -519,14 +750,29 @@ app.post('/progress/lessons/:lessonId/complete', async (c) => {
   const completedCount = completedLessonsResult[0]?.count || 0;
   const progressPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  await db
+  const updatedProgress = await db
     .update(userAcademyProgress)
     .set({
+      status: progressPercentage >= 100 ? 'completed' : 'in_progress',
       progressPercentage,
       lastAccessedAt: new Date(),
+      completedAt: progressPercentage >= 100 ? new Date() : null,
       updatedAt: new Date(),
     })
-    .where(and(eq(userAcademyProgress.userId, dbUser.id), eq(userAcademyProgress.courseId, module.courseId)));
+    .where(and(eq(userAcademyProgress.userId, dbUser.id), eq(userAcademyProgress.courseId, module.courseId)))
+    .returning({ id: userAcademyProgress.id });
+
+  if (!updatedProgress[0]) {
+    await db.insert(userAcademyProgress).values({
+      userId: dbUser.id,
+      courseId: module.courseId,
+      status: progressPercentage >= 100 ? 'completed' : 'in_progress',
+      progressPercentage,
+      startedAt: new Date(),
+      lastAccessedAt: new Date(),
+      completedAt: progressPercentage >= 100 ? new Date() : null,
+    });
+  }
 
   return c.json({
     data: {
@@ -556,6 +802,9 @@ app.post('/quiz/:questionId/attempt', async (c) => {
     .where(eq(academyQuizQuestions.id, questionId))
     .limit(1);
   if (!question) return c.json({ error: 'Question not found' }, 404);
+  if (parsed.data.selectedOption >= (question.options as unknown[]).length) {
+    return c.json({ error: 'selectedOption tidak valid untuk soal ini.' }, 400);
+  }
 
   const isCorrect = parsed.data.selectedOption === question.correctIndex;
 

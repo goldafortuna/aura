@@ -21,6 +21,9 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "node scripts/seed.js",
     "db:seed-academy": "node scripts/seed-academy.js",
+    "academy:export-pdfs": "powershell -ExecutionPolicy Bypass -File scripts/export-academy-pdfs.ps1",
+    "academy:prepare-assets": "node scripts/prepare-academy-pdf-assets.js",
+    "academy:import-master-course": "node scripts/import-academy-master-course.js",
     "db:seed-lioo-history": "node scripts/seed-lioo-historical-q1-2026.js"
   },
   "dependencies": {

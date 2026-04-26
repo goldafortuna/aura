@@ -1,0 +1,245 @@
+{
+  "course": {
+    "slug": "sekretaris-pimpinan-profesional",
+    "title": "Sekretaris Pimpinan Profesional",
+    "description": "Program pembelajaran praktis untuk membangun kompetensi inti sekretaris pimpinan modern melalui lima modul terstruktur, lesson berbasis PDF, dan quiz evaluasi di akhir setiap modul.",
+    "category": "fundamental",
+    "difficulty": "beginner",
+    "status": "published",
+    "isPublic": true,
+    "totalDuration": 100
+  },
+  "assetBasePath": "academy-assets/sekretaris-pimpinan-profesional",
+  "modules": [
+    {
+      "order": 1,
+      "slug": "modul-1-peran-identitas",
+      "title": "Peran & Identitas Sekretaris Modern",
+      "description": "Memahami evolusi peran, posisi strategis, etika profesi, dan citra profesional sekretaris modern.",
+      "sourcePptx": "Modul1_Peran_Identitas_Sekretaris  -  Rev.pptx",
+      "sourcePdf": "Modul1_Peran_Identitas_Sekretaris.pdf",
+      "quizMarkdown": "QUIZ_Modul1_Peran_Identigas_Sekretaris.md",
+      "colorGradient": "from-sky-500 to-cyan-500",
+      "bgColor": "bg-sky-50",
+      "iconColor": "text-sky-700",
+      "lessons": [
+        {
+          "order": 1,
+          "slug": "sekretaris-dulu-vs-sekarang",
+          "title": "Sekretaris Dulu vs. Sekarang",
+          "description": "Mengenali perubahan peran sekretaris dari fungsi administratif menjadi mitra strategis pimpinan.",
+          "duration": 5,
+          "slideRange": { "start": 3, "end": 5 }
+        },
+        {
+          "order": 2,
+          "slug": "peran-strategis-dalam-organisasi",
+          "title": "Peran Strategis Sekretaris dalam Organisasi",
+          "description": "Memahami posisi sekretaris sebagai penghubung informasi, komunikasi, dan pengambilan keputusan pimpinan.",
+          "duration": 5,
+          "slideRange": { "start": 6, "end": 8 }
+        },
+        {
+          "order": 3,
+          "slug": "etika-profesi-dan-hubungan-kerja",
+          "title": "Etika Profesi dan Hubungan Kerja dengan Pimpinan",
+          "description": "Menguatkan pilar kerahasiaan, integritas, loyalitas profesional, dan relasi kerja yang sehat dengan pimpinan.",
+          "duration": 5,
+          "slideRange": { "start": 9, "end": 11 }
+        },
+        {
+          "order": 4,
+          "slug": "citra-profesional-dan-komunikasi-digital",
+          "title": "Citra Profesional dan Komunikasi Digital",
+          "description": "Menata penampilan, bahasa tubuh, dan etika komunikasi digital sebagai representasi profesional pimpinan.",
+          "duration": 5,
+          "slideRange": { "start": 12, "end": 15 }
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "slug": "modul-2-manajemen-jadwal",
+      "title": "Manajemen Jadwal & Prioritas Pimpinan",
+      "description": "Mengelola kalender pimpinan, prioritas kerja, perjalanan dinas, dan perubahan jadwal secara terstruktur.",
+      "sourcePptx": "Modul2_Manajemen_Jadwal  -  Rev.pptx",
+      "sourcePdf": "Modul2_Manajemen_Jadwal.pdf",
+      "quizMarkdown": "Quiz_Modul2_Manajemen_Jadwal.md",
+      "colorGradient": "from-emerald-500 to-teal-500",
+      "bgColor": "bg-emerald-50",
+      "iconColor": "text-emerald-700",
+      "lessons": [
+        {
+          "order": 1,
+          "slug": "memahami-kalender-pimpinan",
+          "title": "Memahami Kalender Pimpinan",
+          "description": "Memetakan agenda harian, mingguan, dan bulanan agar pimpinan selalu siap menghadapi prioritas utama.",
+          "duration": 5,
+          "slideRange": { "start": 3, "end": 5 }
+        },
+        {
+          "order": 2,
+          "slug": "teknik-prioritas-dan-time-blocking",
+          "title": "Teknik Prioritas dan Time Blocking",
+          "description": "Menggunakan kerangka prioritas dan penguncian waktu agar agenda pimpinan lebih fokus dan realistis.",
+          "duration": 5,
+          "slideRange": { "start": 6, "end": 8 }
+        },
+        {
+          "order": 3,
+          "slug": "koordinasi-rapat-dan-perjalanan-dinas",
+          "title": "Koordinasi Rapat dan Perjalanan Dinas",
+          "description": "Menyiapkan meeting dan perjalanan dinas dengan alur koordinasi, dokumen, dan checklist yang rapi.",
+          "duration": 5,
+          "slideRange": { "start": 9, "end": 11 }
+        },
+        {
+          "order": 4,
+          "slug": "digital-tools-dan-respons-perubahan",
+          "title": "Digital Tools dan Respons terhadap Perubahan",
+          "description": "Memanfaatkan tools kalender digital dan merespons perubahan agenda mendadak tanpa mengganggu prioritas inti.",
+          "duration": 5,
+          "slideRange": { "start": 12, "end": 15 }
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "slug": "modul-3-komunikasi-korespondensi",
+      "title": "Komunikasi Profesional & Korespondensi",
+      "description": "Membangun kemampuan komunikasi tertulis dan lisan yang rapi, tepat, dan mencerminkan profesionalisme pimpinan.",
+      "sourcePptx": "Modul3_Komunikasi_Korespondensi  -  Rev.pptx",
+      "sourcePdf": "Modul3_Komunikasi_Korespondensi.pdf",
+      "quizMarkdown": "Quiz_Modul3_Komunikasi_Korespondensi.md",
+      "colorGradient": "from-amber-500 to-orange-500",
+      "bgColor": "bg-amber-50",
+      "iconColor": "text-amber-700",
+      "lessons": [
+        {
+          "order": 1,
+          "slug": "anatomi-surat-resmi",
+          "title": "Anatomi Surat Resmi dan Standar Format",
+          "description": "Memahami bagian surat resmi, format baku, dan pilihan jenis surat yang tepat untuk kebutuhan organisasi.",
+          "duration": 5,
+          "slideRange": { "start": 3, "end": 5 }
+        },
+        {
+          "order": 2,
+          "slug": "email-bisnis-efektif",
+          "title": "Email Bisnis yang Efektif dan Berkesan",
+          "description": "Menyusun email bisnis yang jelas, sopan, efisien, dan aman dari kesalahan etika digital.",
+          "duration": 5,
+          "slideRange": { "start": 6, "end": 8 }
+        },
+        {
+          "order": 3,
+          "slug": "notulensi-rapat-berguna",
+          "title": "Notulensi Rapat yang Benar-Benar Berguna",
+          "description": "Mencatat hasil rapat dengan fokus pada keputusan, tindak lanjut, dan distribusi yang mudah ditindaklanjuti.",
+          "duration": 5,
+          "slideRange": { "start": 9, "end": 11 }
+        },
+        {
+          "order": 4,
+          "slug": "komunikasi-lisan-dan-citra-profesional",
+          "title": "Komunikasi Lisan dan Citra Profesional",
+          "description": "Menghadirkan komunikasi lisan, penerimaan tamu, dan bahasa tubuh yang mendukung citra profesional pimpinan.",
+          "duration": 5,
+          "slideRange": { "start": 12, "end": 15 }
+        }
+      ]
+    },
+    {
+      "order": 4,
+      "slug": "modul-4-manajemen-dokumen",
+      "title": "Manajemen Dokumen & Arsip Digital",
+      "description": "Menata sistem klasifikasi, arsip digital, keamanan akses, dan retensi dokumen secara modern.",
+      "sourcePptx": "Modul4_Manajemen_Dokumen  -  Rev.pptx",
+      "sourcePdf": "Modul4_Manajemen_Dokumen.pdf",
+      "quizMarkdown": "Quiz_Modul4_Manajemen_Dokumen.md",
+      "colorGradient": "from-violet-500 to-indigo-500",
+      "bgColor": "bg-violet-50",
+      "iconColor": "text-violet-700",
+      "lessons": [
+        {
+          "order": 1,
+          "slug": "klasifikasi-dan-penomoran-dokumen",
+          "title": "Sistem Klasifikasi dan Penomoran Dokumen",
+          "description": "Membuat dokumen mudah ditemukan dengan aturan klasifikasi, penamaan, dan penomoran yang konsisten.",
+          "duration": 5,
+          "slideRange": { "start": 3, "end": 5 }
+        },
+        {
+          "order": 2,
+          "slug": "arsip-digital-dan-cloud",
+          "title": "Manajemen Arsip Digital dan Cloud",
+          "description": "Memilih dan memakai sistem penyimpanan digital yang mendukung akses cepat, kolaborasi, dan keteraturan.",
+          "duration": 5,
+          "slideRange": { "start": 6, "end": 8 }
+        },
+        {
+          "order": 3,
+          "slug": "keamanan-dokumen-dan-hak-akses",
+          "title": "Keamanan Dokumen dan Hak Akses",
+          "description": "Menjaga dokumen sensitif dengan pengaturan akses, kontrol distribusi, dan kebiasaan keamanan yang benar.",
+          "duration": 5,
+          "slideRange": { "start": 9, "end": 11 }
+        },
+        {
+          "order": 4,
+          "slug": "retensi-dan-pemusnahan-arsip",
+          "title": "Retensi Arsip dan Prosedur Pemusnahan",
+          "description": "Menentukan masa simpan dokumen dan memusnahkannya dengan prosedur yang aman, legal, dan tertelusur.",
+          "duration": 5,
+          "slideRange": { "start": 12, "end": 15 }
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "slug": "modul-5-sekretaris-era-ai",
+      "title": "Sekretaris di Era AI & Adaptasi Berkelanjutan",
+      "description": "Memanfaatkan AI secara produktif, etis, dan aman untuk memperkuat daya saing sekretaris modern.",
+      "sourcePptx": "Modul5_Sekretaris_Era_AI  -  Rev.pptx",
+      "sourcePdf": "Modul5_Sekretaris_Era_AI.pdf",
+      "quizMarkdown": "Quiz_Modul5_Sekretaris_Era_AI.md",
+      "colorGradient": "from-fuchsia-500 to-rose-500",
+      "bgColor": "bg-fuchsia-50",
+      "iconColor": "text-fuchsia-700",
+      "lessons": [
+        {
+          "order": 1,
+          "slug": "ai-sebagai-alat-kerja",
+          "title": "AI untuk Sekretaris: Bukan Ancaman, tapi Alat",
+          "description": "Memahami posisi AI sebagai alat bantu kerja yang memperkuat peran strategis sekretaris, bukan menggantikannya.",
+          "duration": 5,
+          "slideRange": { "start": 3, "end": 5 }
+        },
+        {
+          "order": 2,
+          "slug": "otomasi-dan-produktivitas-digital",
+          "title": "Otomasi Tugas Berulang dan Produktivitas Digital",
+          "description": "Mengidentifikasi tugas yang bisa diotomasi agar waktu kerja lebih banyak dipakai untuk nilai tambah manusiawi.",
+          "duration": 5,
+          "slideRange": { "start": 6, "end": 8 }
+        },
+        {
+          "order": 3,
+          "slug": "etika-ai-dan-keamanan-data",
+          "title": "Etika AI, Privasi, dan Keamanan Data",
+          "description": "Menentukan batas aman penggunaan AI dalam konteks dokumen sensitif, data kerja, dan komunikasi organisasi.",
+          "duration": 5,
+          "slideRange": { "start": 9, "end": 11 }
+        },
+        {
+          "order": 4,
+          "slug": "karier-sekretaris-masa-depan",
+          "title": "Membangun Karier Sekretaris Masa Depan",
+          "description": "Menyiapkan kompetensi, mindset belajar, dan arah pengembangan karier agar tetap relevan di era AI.",
+          "duration": 5,
+          "slideRange": { "start": 12, "end": 15 }
+        }
+      ]
+    }
+  ]
+}
