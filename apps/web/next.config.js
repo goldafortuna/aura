@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const isDevelopment = process.env.NODE_ENV === 'development';
-const r2PublicHostname = process.env.R2_PUBLIC_BASE_URL
+const configuredR2PublicHostname = process.env.R2_PUBLIC_BASE_URL
   ? (() => {
       try {
         return new URL(process.env.R2_PUBLIC_BASE_URL).hostname;
@@ -9,11 +9,20 @@ const r2PublicHostname = process.env.R2_PUBLIC_BASE_URL
       }
     })()
   : null;
+const r2ImageHostnames = Array.from(
+  new Set(
+    [
+      configuredR2PublicHostname,
+      'pub-e951d1d3a86e4a359e3f0da971bbb1e7.r2.dev',
+      '*.r2.dev',
+    ].filter(Boolean),
+  ),
+);
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' ${isDevelopment ? "'unsafe-eval' " : ''}https://*.clerk.com https://*.clerk.accounts.dev https://js.clerk.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev${r2PublicHostname ? ` https://${r2PublicHostname}` : ''}`,
+  `img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev ${r2ImageHostnames.map((hostname) => `https://${hostname}`).join(' ')}`,
   "font-src 'self' data: https:",
   `connect-src 'self' ${isDevelopment ? 'ws: wss: ' : ''}https: https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
   "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com",
@@ -47,14 +56,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.clerk.dev',
       },
-      ...(r2PublicHostname
-        ? [
-            {
-              protocol: 'https',
-              hostname: r2PublicHostname,
-            },
-          ]
-        : []),
+      ...r2ImageHostnames.map((hostname) => ({
+        protocol: 'https',
+        hostname,
+      })),
     ],
   },
   async headers() {
