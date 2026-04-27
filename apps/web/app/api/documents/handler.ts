@@ -7,14 +7,43 @@ import { requireSecretary } from '../../../lib/middleware/auth';
 import { extractDocumentText } from '../../../lib/extractDocumentText';
 import { reviewOfficialDocumentText } from '../../../lib/aiDocumentReview';
 import { downloadObject, removeObjects } from '../../../lib/objectStorage';
-import { loadActiveAiCallConfig, loadDocumentReviewSystemPrompt } from '../../../lib/aiConfig';
+import { loadAiCallConfigCandidates, loadDocumentReviewSystemPrompt } from '../../../lib/aiConfig';
 import type { AiCallConfig } from '../../../lib/aiClient';
+import { toUserFacingAiError } from '../../../lib/aiErrorMessage';
 import { createRateLimitMiddleware } from '../../../lib/middleware/rateLimit';
 import { validateUserScopedStoragePath } from '../../../lib/storageAccess';
 import { internalServerError } from '../../../lib/httpErrors';
 import { automationMinutesFromStartedAt, recordDocumentReviewSavings } from '../../../lib/timeSavings';
 
 const app = new Hono();
+
+async function reviewDocumentWithFallback(params: {
+  text: string;
+  systemPrompt: string;
+  cfgCandidates: AiCallConfig[];
+}) {
+  let lastError: unknown;
+
+  for (const cfg of params.cfgCandidates) {
+    try {
+      return await reviewOfficialDocumentText({
+        text: params.text,
+        systemPrompt: params.systemPrompt,
+        cfg,
+      });
+    } catch (err) {
+      lastError = err;
+      console.warn('[documents/analyze] AI provider failed:', {
+        kind: cfg.kind,
+        baseUrl: cfg.baseUrl,
+        model: cfg.model,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  throw new Error(toUserFacingAiError(lastError, params.cfgCandidates));
+}
 
 const createDocumentSchema = z.object({
   filename: z.string().min(1),
@@ -203,18 +232,20 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       throw new Error('Dokumen tidak mengandung teks yang bisa diekstrak (mungkin scan PDF tanpa OCR).');
     }
 
-    const cfg =
-      (await loadActiveAiCallConfig(dbUser.id)) ??
-      (process.env.E2E_MOCK_AI === '1'
-        ? ({
-            kind: 'openai_compatible',
-            apiKey: 'e2e-mock',
-            baseUrl: 'https://example.invalid',
-            model: 'e2e-mock',
-          } satisfies AiCallConfig)
-        : undefined);
+    const cfgCandidates = await loadAiCallConfigCandidates(dbUser.id);
+    if (process.env.E2E_MOCK_AI === '1' && cfgCandidates.length === 0) {
+      cfgCandidates.push({
+        kind: 'openai_compatible',
+        apiKey: 'e2e-mock',
+        baseUrl: 'https://example.invalid',
+        model: 'e2e-mock',
+      });
+    }
+    if (cfgCandidates.length === 0) {
+      throw new Error('Provider AI aktif belum diset. Buka Pengaturan untuk mengaktifkan provider.');
+    }
     const systemPrompt = await loadDocumentReviewSystemPrompt(dbUser.id);
-    const review = await reviewOfficialDocumentText({ text, systemPrompt, cfg });
+    const review = await reviewDocumentWithFallback({ text, systemPrompt, cfgCandidates });
 
     const typoCount = review.findings.filter((f) => f.kind === 'typo').length;
     const ambiguousCount = review.findings.filter((f) => f.kind === 'ambiguous').length;
@@ -244,7 +275,7 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
 
     return c.json({ data: updated });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
+    const message = toUserFacingAiError(err);
 
     await db
       .update(documents)

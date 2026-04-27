@@ -9,7 +9,7 @@ import { reviewMeetingMinutesText } from '../../../lib/aiMinutesReview';
 import { applyFindingsToDocument } from '../../../lib/applyFindingsToDocument';
 import { sendNotulaEmail } from '../../../lib/sendEmailGmail';
 import { downloadObject, uploadObject } from '../../../lib/objectStorage';
-import { loadActiveAiCallConfig, loadMinutesReviewSystemPrompt } from '../../../lib/aiConfig';
+import { loadAiCallConfigCandidates, loadMinutesReviewSystemPrompt } from '../../../lib/aiConfig';
 import { parseIsoDateOrNull } from '../../../lib/utils/date';
 import { buildUnitKerjaHints, normalizeDetectedUnit } from '../../../lib/unitKerjaMatching';
 import { emailConfigs } from '../../../db/schema';
@@ -17,10 +17,41 @@ import { unitKerja } from '../../../db/schema';
 import { decrypt } from '../../../lib/encryption';
 import { createRateLimitMiddleware } from '../../../lib/middleware/rateLimit';
 import type { AiCallConfig } from '../../../lib/aiClient';
+import { toUserFacingAiError } from '../../../lib/aiErrorMessage';
 import { validateUserScopedStoragePath } from '../../../lib/storageAccess';
 import { automationMinutesFromStartedAt, recordMinutesCtaSavings } from '../../../lib/timeSavings';
 
 const app = new Hono();
+
+async function reviewMeetingMinutesWithFallback(params: {
+  text: string;
+  systemPrompt: string;
+  cfgCandidates: AiCallConfig[];
+  unitHints?: Array<{ name: string; aliases?: string[] }>;
+}) {
+  let lastError: unknown;
+
+  for (const cfg of params.cfgCandidates) {
+    try {
+      return await reviewMeetingMinutesText({
+        text: params.text,
+        systemPrompt: params.systemPrompt,
+        cfg,
+        unitHints: params.unitHints,
+      });
+    } catch (err) {
+      lastError = err;
+      console.warn('[meeting-minutes/analyze] AI provider failed:', {
+        kind: cfg.kind,
+        baseUrl: cfg.baseUrl,
+        model: cfg.model,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  throw new Error(toUserFacingAiError(lastError, params.cfgCandidates));
+}
 
 function parseJsonArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -191,17 +222,18 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       throw new Error('Notula tidak mengandung teks yang bisa diekstrak (mungkin scan PDF tanpa OCR).');
     }
 
-    const cfg =
-      (await loadActiveAiCallConfig(dbUser.id)) ??
-      (process.env.E2E_MOCK_AI === '1'
-        ? ({
-            kind: 'openai_compatible',
-            apiKey: 'e2e-mock',
-            baseUrl: 'https://example.invalid',
-            model: 'e2e-mock',
-          } satisfies AiCallConfig)
-        : undefined);
-    if (!cfg) throw new Error('Provider AI aktif belum diset. Buka Pengaturan untuk mengaktifkan provider.');
+    const cfgCandidates = await loadAiCallConfigCandidates(dbUser.id);
+    if (process.env.E2E_MOCK_AI === '1' && cfgCandidates.length === 0) {
+      cfgCandidates.push({
+        kind: 'openai_compatible',
+        apiKey: 'e2e-mock',
+        baseUrl: 'https://example.invalid',
+        model: 'e2e-mock',
+      });
+    }
+    if (cfgCandidates.length === 0) {
+      throw new Error('Provider AI aktif belum diset. Buka Pengaturan untuk mengaktifkan provider.');
+    }
 
     const systemPrompt = await loadMinutesReviewSystemPrompt(dbUser.id);
     const unitKerjaRows = await db
@@ -209,10 +241,10 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       .from(unitKerja)
       .where(isNull(unitKerja.userId));
 
-    const review = await reviewMeetingMinutesText({
+    const review = await reviewMeetingMinutesWithFallback({
       text,
       systemPrompt,
-      cfg,
+      cfgCandidates,
       unitHints: buildUnitKerjaHints(unitKerjaRows),
     });
 
@@ -282,7 +314,7 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
 
     return c.json({ data: updated });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
+    const message = toUserFacingAiError(err);
 
     await db
       .update(meetingMinutes)

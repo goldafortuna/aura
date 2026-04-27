@@ -23,41 +23,49 @@ export async function loadMinutesReviewSystemPrompt(_userId: string) {
   return row?.systemPrompt?.trim() ? row.systemPrompt : DEFAULT_MINUTES_REVIEW_SYSTEM_PROMPT;
 }
 
-export async function loadActiveAiCallConfig(userId: string): Promise<AiCallConfig | undefined> {
-  const [userClaude] = await db
-    .select()
-    .from(aiProviderConfigs)
-    .where(
-      and(
-        eq(aiProviderConfigs.userId, userId),
-        eq(aiProviderConfigs.provider, 'anthropic'),
-        eq(aiProviderConfigs.isActive, true),
-      ),
-    )
-    .limit(1);
-
-  const [globalDefault] = userClaude
-    ? []
-    : await db
-        .select()
-        .from(aiProviderConfigs)
-        .where(
-          and(
-            isNull(aiProviderConfigs.userId),
-            inArray(aiProviderConfigs.provider, ['deepseek', 'openai']),
-            eq(aiProviderConfigs.isActive, true),
-          ),
-        )
-        .limit(1);
-
-  const row = userClaude ?? globalDefault;
-  if (!row) return undefined;
-
-  const kind = row.kind === 'anthropic' ? 'anthropic' : 'openai_compatible';
+function toAiCallConfig(row: {
+  kind: string;
+  apiKey: string;
+  baseUrl: string | null;
+  model: string;
+}): AiCallConfig {
   return {
-    kind,
+    kind: row.kind === 'anthropic' ? 'anthropic' : 'openai_compatible',
     apiKey: decrypt(row.apiKey),
     baseUrl: row.baseUrl,
     model: row.model,
   };
+}
+
+export async function loadAiCallConfigCandidates(userId: string): Promise<AiCallConfig[]> {
+  const [personalRows, globalRows] = await Promise.all([
+    db
+      .select()
+      .from(aiProviderConfigs)
+      .where(
+        and(
+          eq(aiProviderConfigs.userId, userId),
+          eq(aiProviderConfigs.provider, 'anthropic'),
+          eq(aiProviderConfigs.isActive, true),
+        ),
+      )
+      .limit(1),
+    db
+      .select()
+      .from(aiProviderConfigs)
+      .where(
+        and(
+          isNull(aiProviderConfigs.userId),
+          inArray(aiProviderConfigs.provider, ['deepseek', 'openai']),
+          eq(aiProviderConfigs.isActive, true),
+        ),
+      ),
+  ]);
+
+  return [...personalRows, ...globalRows].map(toAiCallConfig);
+}
+
+export async function loadActiveAiCallConfig(userId: string): Promise<AiCallConfig | undefined> {
+  const [primary] = await loadAiCallConfigCandidates(userId);
+  return primary;
 }
