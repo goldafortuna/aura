@@ -132,6 +132,16 @@ interface Document {
   sizeLabel: string;
 }
 
+type PreviewKind = 'pdf' | 'office' | 'unsupported';
+
+type PreviewState = {
+  title: string;
+  sourceUrl: string;
+  embedUrl: string | null;
+  kind: PreviewKind;
+  note?: string;
+};
+
 const statusOptions: { label: string; value: DocumentStatus; badge: string }[] = [
   { label: 'Memproses', value: 'processing', badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
   { label: 'Direview', value: 'reviewed', badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
@@ -156,6 +166,80 @@ const bytesToSize = (bytes: number) => {
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+
+function hasFileExtension(filename: string, extensions: string[]) {
+  const lower = filename.toLowerCase();
+  return extensions.some((ext) => lower.endsWith(ext));
+}
+
+function isPdfDocument(doc: Pick<Document, 'filename' | 'fileType'>) {
+  return doc.fileType.toLowerCase().includes('pdf') || hasFileExtension(doc.filename, ['.pdf']);
+}
+
+function isWordDocument(doc: Pick<Document, 'filename' | 'fileType'>) {
+  const normalizedType = doc.fileType.toLowerCase();
+  return (
+    normalizedType.includes('word') ||
+    normalizedType.includes('docx') ||
+    hasFileExtension(doc.filename, ['.doc', '.docx'])
+  );
+}
+
+function toAbsoluteBrowserUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (typeof window === 'undefined') return url;
+  return new URL(url, window.location.origin).toString();
+}
+
+function canUseOfficePreview(absoluteUrl: string) {
+  try {
+    const { hostname, protocol } = new URL(absoluteUrl);
+    if (protocol !== 'https:') return false;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildPreviewState(doc: Document, signedUrl: string): PreviewState {
+  if (isPdfDocument(doc)) {
+    return {
+      title: doc.filename,
+      sourceUrl: signedUrl,
+      embedUrl: signedUrl,
+      kind: 'pdf',
+    };
+  }
+
+  if (isWordDocument(doc)) {
+    const absoluteUrl = toAbsoluteBrowserUrl(signedUrl);
+    if (canUseOfficePreview(absoluteUrl)) {
+      return {
+        title: doc.filename,
+        sourceUrl: signedUrl,
+        embedUrl: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteUrl)}`,
+        kind: 'office',
+      };
+    }
+
+    return {
+      title: doc.filename,
+      sourceUrl: signedUrl,
+      embedUrl: null,
+      kind: 'unsupported',
+      note: 'Preview DOC/DOCX butuh URL HTTPS publik. Dokumen ini tetap bisa dibuka di tab baru atau diunduh.',
+    };
+  }
+
+  return {
+    title: doc.filename,
+    sourceUrl: signedUrl,
+    embedUrl: null,
+    kind: 'unsupported',
+    note: 'Tipe file ini belum didukung untuk preview langsung di browser.',
+  };
+}
 
 async function copyTextToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
@@ -316,8 +400,7 @@ export const DocumentReview: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewTitle, setPreviewTitle] = useState<string>('');
+  const [previewState, setPreviewState] = useState<PreviewState | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [findingsDoc, setFindingsDoc] = useState<Document | null>(null);
   const [findingsCopyState, setFindingsCopyState] = useState<'idle' | 'ok' | 'fail'>('idle');
@@ -651,8 +734,7 @@ export const DocumentReview: React.FC = () => {
       setPreviewLoading(true);
       setError(null);
       const url = await fetchSignedUrl(doc.id);
-      setPreviewTitle(doc.filename);
-      setPreviewUrl(url);
+      setPreviewState(buildPreviewState(doc, url));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan.');
     } finally {
@@ -1065,10 +1147,10 @@ export const DocumentReview: React.FC = () => {
 
       {/* ── Modals ────────────────────────────────────────────── */}
       <AnimatePresence>
-        {previewUrl && (
+        {previewState && (
           <Modal
-            title={previewTitle || 'Preview Dokumen'}
-            onClose={() => { setPreviewUrl(null); setPreviewTitle(''); }}
+            title={previewState.title || 'Preview Dokumen'}
+            onClose={() => { setPreviewState(null); }}
           >
             {previewLoading ? (
               <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -1076,8 +1158,45 @@ export const DocumentReview: React.FC = () => {
                 Menyiapkan preview…
               </div>
             ) : (
-              <div className="h-[70vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                <iframe title="Document preview" src={previewUrl} className="h-full w-full" />
+              <div className="space-y-3">
+                {previewState.embedUrl ? (
+                  <div className="h-[70vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <iframe
+                      title="Document preview"
+                      src={previewState.embedUrl}
+                      className="h-full w-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-[40vh] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
+                    <FileText className="h-10 w-10 text-slate-300" aria-hidden />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-slate-700">Preview belum tersedia</p>
+                      <p className="text-sm text-slate-500">
+                        {previewState.note ?? 'File ini tidak bisa dipreview langsung di browser.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={previewState.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Buka di tab baru
+                  </a>
+                  <a
+                    href={previewState.sourceUrl}
+                    download={previewState.title}
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Unduh dokumen
+                  </a>
+                </div>
               </div>
             )}
           </Modal>
