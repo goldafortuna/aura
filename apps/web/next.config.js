@@ -25,7 +25,7 @@ const contentSecurityPolicy = [
   `img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev ${r2ImageHostnames.map((hostname) => `https://${hostname}`).join(' ')}`,
   "font-src 'self' data: https:",
   `connect-src 'self' ${isDevelopment ? 'ws: wss: ' : ''}https: https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com`,
-  "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com",
+  "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.hcaptcha.com https://hcaptcha.com https://view.officeapps.live.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
