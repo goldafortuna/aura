@@ -1,9 +1,14 @@
 import { Hono } from 'hono';
+import { eq } from 'drizzle-orm';
+import { db } from '../../../../db';
+import { webdavConfigs } from '../../../../db/schema';
+import { decrypt } from '../../../../lib/encryption';
 import { requireSecretary } from '../../../../lib/middleware/auth';
 import { uploadObject } from '../../../../lib/objectStorage';
 import { validateUploadedFile } from '../../../../lib/utils/fileValidation';
 import { createRateLimitMiddleware } from '../../../../lib/middleware/rateLimit';
 import { internalServerError } from '../../../../lib/httpErrors';
+import { uploadFileToWebdav } from '../../../../lib/webdav';
 
 const app = new Hono();
 
@@ -47,6 +52,12 @@ app.post('/', createRateLimitMiddleware(10, 60000), async (c) => {
     fileSize: number;
     storagePath: string;
   }> = [];
+  const warnings: string[] = [];
+  const [webdavConfig] = await db
+    .select()
+    .from(webdavConfigs)
+    .where(eq(webdavConfigs.userId, dbUser.id))
+    .limit(1);
 
   for (const file of files) {
     if (file.size > MAX_BYTES) {
@@ -88,6 +99,29 @@ app.post('/', createRateLimitMiddleware(10, 60000), async (c) => {
       );
     }
 
+    if (webdavConfig?.isEnabled) {
+      try {
+        await uploadFileToWebdav({
+          baseUrl: webdavConfig.baseUrl,
+          username: webdavConfig.username,
+          password: decrypt(webdavConfig.password),
+          documentReviewFolder: webdavConfig.documentReviewFolder,
+          filename: safeName,
+          body: arrayBuffer,
+          contentType: validation.detectedMimeType || 'application/octet-stream',
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown WebDAV error';
+        console.warn('[uploads/documents] WebDAV sync warning:', {
+          userId: dbUser.id,
+          filename: safeName,
+          documentReviewFolder: webdavConfig.documentReviewFolder,
+          message,
+        });
+        warnings.push(`WebDAV gagal untuk ${safeName}: ${message}`);
+      }
+    }
+
     results.push({
       filename: safeName,
       fileType: validation.detectedMimeType || 'application/octet-stream',
@@ -96,7 +130,7 @@ app.post('/', createRateLimitMiddleware(10, 60000), async (c) => {
     });
   }
 
-  return c.json({ data: results }, { status: 201 });
+  return c.json({ data: results, warnings }, { status: 201 });
 });
 
 export default app;

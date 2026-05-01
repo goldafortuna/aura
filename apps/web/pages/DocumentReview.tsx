@@ -392,6 +392,7 @@ export const DocumentReview: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [aiProviders, setAiProviders] = useState<AiProviderListItem[]>([]);
   const [aiProvidersLoading, setAiProvidersLoading] = useState(true);
   const [providerActivating, setProviderActivating] = useState(false);
@@ -419,6 +420,7 @@ export const DocumentReview: React.FC = () => {
       if (!silent) {
         setLoading(true);
         setError(null);
+        setMessage(null);
       }
       const res = await fetch('/api/documents', { cache: 'no-store' });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal memuat dokumen'));
@@ -630,7 +632,12 @@ export const DocumentReview: React.FC = () => {
       if (!uploadJson || typeof uploadJson !== 'object' || !('data' in uploadJson)) {
         throw new Error('Gagal upload dokumen (respons tidak valid).');
       }
-      const uploaded = (uploadJson as { data: Array<{ filename: string; fileType: string; fileSize: number; storagePath: string }> }).data;
+      const uploadPayload = uploadJson as {
+        data: Array<{ filename: string; fileType: string; fileSize: number; storagePath: string }>;
+        warnings?: string[];
+      };
+      const uploaded = uploadPayload.data;
+      const warnings = Array.isArray(uploadPayload.warnings) ? uploadPayload.warnings.filter(Boolean) : [];
       const createdIds: string[] = [];
       for (const u of uploaded) {
         const res = await fetch('/api/documents', {
@@ -643,6 +650,9 @@ export const DocumentReview: React.FC = () => {
         const docId = createdJson.data?.id;
         if (!docId) throw new Error('Gagal menyimpan metadata dokumen (ID tidak dikembalikan).');
         createdIds.push(docId);
+      }
+      if (warnings.length > 0) {
+        setMessage(`Upload berhasil, tetapi sinkronisasi WebDAV bermasalah: ${warnings.join(' | ')}`);
       }
       await fetchDocuments({ silent: true });
       idsToAnalyze = createdIds;
@@ -733,6 +743,7 @@ export const DocumentReview: React.FC = () => {
     try {
       setPreviewLoading(true);
       setError(null);
+      setMessage(null);
       const url = await fetchSignedUrl(doc.id);
       setPreviewState(buildPreviewState(doc, url));
     } catch (err) {
@@ -745,6 +756,7 @@ export const DocumentReview: React.FC = () => {
   const handleDownload = async (doc: Document) => {
     try {
       setError(null);
+      setMessage(null);
       const url = await fetchSignedUrl(doc.id);
       const a = document.createElement('a');
       a.href = url; a.target = '_blank'; a.rel = 'noreferrer'; a.download = doc.filename;
@@ -843,6 +855,20 @@ export const DocumentReview: React.FC = () => {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" aria-hidden />
           <p className="flex-1 text-sm text-red-700">{error}</p>
           <button onClick={() => setError(null)} className="shrink-0 text-red-400 transition hover:text-red-600">
+            <X className="h-4 w-4" />
+          </button>
+        </motion.div>
+      )}
+
+      {message && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+          <p className="flex-1 text-sm text-amber-800">{message}</p>
+          <button onClick={() => setMessage(null)} className="shrink-0 text-amber-400 transition hover:text-amber-600">
             <X className="h-4 w-4" />
           </button>
         </motion.div>

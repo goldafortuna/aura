@@ -71,7 +71,7 @@ async function readApiErrorMessage(res: Response, fallback: string) {
   }
 }
 
-type SettingsTab = 'approval-users' | 'google' | 'ai' | 'prompts' | 'unit-kerja' | 'analytics' | 'email';
+type SettingsTab = 'approval-users' | 'google' | 'ai' | 'prompts' | 'unit-kerja' | 'analytics' | 'email' | 'webdav';
 
 function parseSettingsTab(raw: string | null): SettingsTab {
   if (
@@ -81,7 +81,8 @@ function parseSettingsTab(raw: string | null): SettingsTab {
     raw === 'google' ||
     raw === 'unit-kerja' ||
     raw === 'analytics' ||
-    raw === 'email'
+    raw === 'email' ||
+    raw === 'webdav'
   ) return raw;
   return 'approval-users';
 }
@@ -98,6 +99,14 @@ type EmailConfigRow = {
   gmailAddress: string;
   gmailAppPassword: string;
   fromName: string;
+} | null;
+
+type WebdavConfigRow = {
+  baseUrl: string;
+  username: string;
+  password: string;
+  documentReviewFolder: string;
+  isEnabled: boolean;
 } | null;
 
 type AdminUserRow = {
@@ -255,6 +264,18 @@ export default function SettingsPage() {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailVerifying, setEmailVerifying] = useState(false);
   const [emailVerifyResult, setEmailVerifyResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const [webdavCfg, setWebdavCfg] = useState<WebdavConfigRow>(null);
+  const [webdavLoading, setWebdavLoading] = useState(false);
+  const [webdavBaseUrl, setWebdavBaseUrl] = useState('');
+  const [webdavUsername, setWebdavUsername] = useState('');
+  const [webdavPassword, setWebdavPassword] = useState('');
+  const [webdavFolder, setWebdavFolder] = useState('/review-dokumen');
+  const [webdavEnabled, setWebdavEnabled] = useState(false);
+  const [showWebdavPwd, setShowWebdavPwd] = useState(false);
+  const [webdavSaving, setWebdavSaving] = useState(false);
+  const [webdavVerifying, setWebdavVerifying] = useState(false);
+  const [webdavVerifyResult, setWebdavVerifyResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
   const [adminUsersStatus, setAdminUsersStatus] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
@@ -566,6 +587,104 @@ export default function SettingsPage() {
     }
   };
 
+  const loadWebdavConfig = useCallback(async () => {
+    setWebdavLoading(true);
+    try {
+      const res = await fetch('/api/webdav-config', { cache: 'no-store' });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal memuat konfigurasi WebDAV'));
+      const json = (await res.json()) as { data: WebdavConfigRow };
+      setWebdavCfg(json.data);
+      if (json.data) {
+        setWebdavBaseUrl(json.data.baseUrl);
+        setWebdavUsername(json.data.username);
+        setWebdavPassword('');
+        setWebdavFolder(json.data.documentReviewFolder || '/review-dokumen');
+        setWebdavEnabled(Boolean(json.data.isEnabled));
+      } else {
+        setWebdavBaseUrl('');
+        setWebdavUsername('');
+        setWebdavPassword('');
+        setWebdavFolder('/review-dokumen');
+        setWebdavEnabled(false);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setWebdavLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'webdav' && canUseSecretarySettings) void loadWebdavConfig();
+  }, [activeTab, canUseSecretarySettings, loadWebdavConfig]);
+
+  const saveWebdavConfig = async () => {
+    if (!webdavBaseUrl.trim() || !webdavUsername.trim()) {
+      setError('URL WebDAV dan username wajib diisi.'); return;
+    }
+    if (!webdavPassword.trim() && !webdavCfg) {
+      setError('Password WebDAV wajib diisi.'); return;
+    }
+    setWebdavSaving(true);
+    setError(null);
+    setWebdavVerifyResult(null);
+    try {
+      const body: Record<string, string | boolean> = {
+        baseUrl: webdavBaseUrl.trim(),
+        username: webdavUsername.trim(),
+        documentReviewFolder: webdavFolder.trim() || '/',
+        isEnabled: webdavEnabled,
+      };
+      if (webdavPassword.trim()) body.password = webdavPassword;
+
+      const res = await fetch('/api/webdav-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal menyimpan konfigurasi WebDAV'));
+      setMessage('Konfigurasi WebDAV berhasil disimpan.');
+      setWebdavPassword('');
+      void loadWebdavConfig();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
+    } finally {
+      setWebdavSaving(false);
+    }
+  };
+
+  const verifyWebdavConfig = async () => {
+    if (!webdavBaseUrl.trim() || !webdavUsername.trim() || !webdavPassword.trim()) {
+      setError('Isi URL, username, dan password WebDAV untuk verifikasi.'); return;
+    }
+    setWebdavVerifying(true);
+    setWebdavVerifyResult(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/webdav-config/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseUrl: webdavBaseUrl.trim(),
+          username: webdavUsername.trim(),
+          password: webdavPassword,
+          documentReviewFolder: webdavFolder.trim() || '/',
+        }),
+      });
+      if (!res.ok) {
+        const msg = await readApiErrorMessage(res, 'Verifikasi WebDAV gagal');
+        setWebdavVerifyResult({ ok: false, msg });
+      } else {
+        const json = (await res.json()) as { data: { message: string } };
+        setWebdavVerifyResult({ ok: true, msg: json.data.message });
+      }
+    } catch (e) {
+      setWebdavVerifyResult({ ok: false, msg: e instanceof Error ? e.message : 'Terjadi kesalahan.' });
+    } finally {
+      setWebdavVerifying(false);
+    }
+  };
+
   const goTab = useCallback((t: SettingsTab) => {
     setActiveTab(t);
     setError(null);
@@ -735,6 +854,7 @@ export default function SettingsPage() {
   const tabDefs = useMemo<{ id: SettingsTab; label: string; icon: React.ReactNode }[]>(() => [
     ...(canManageSystem ? [{ id: 'approval-users' as const, label: 'Approval User', icon: <Users className="h-4 w-4" /> }] : []),
     ...(canUseSecretarySettings ? [{ id: 'google' as const, label: 'Google Calendar', icon: <Calendar className="h-4 w-4" /> }] : []),
+    ...(canUseSecretarySettings ? [{ id: 'webdav' as const, label: 'WebDAV', icon: <Link2 className="h-4 w-4" /> }] : []),
     ...((canManageSystem || canUseSecretarySettings) ? [{ id: 'ai' as const, label: 'Provider AI', icon: <Sparkles className="h-4 w-4" /> }] : []),
     ...(canManageSystem ? [
       { id: 'prompts' as const, label: 'System Prompt', icon: <Wand2 className="h-4 w-4" /> },
@@ -1474,6 +1594,125 @@ export default function SettingsPage() {
 
                   <div className="flex justify-end border-t border-gray-100 pt-4">
                     <SaveButton onClick={() => void saveTimeSavingsFormula()} loading={timeSavingsSaving} label="Simpan formula" />
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+          </motion.div>
+        )}
+
+        {activeTab === 'webdav' && canUseSecretarySettings && (
+          <motion.div
+            key="webdav"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.18 }}
+          >
+            <SectionCard
+              icon={<Link2 className="h-5 w-5" />}
+              title="Integrasi WebDAV"
+              description="Simpan konfigurasi WebDAV per user untuk folder Review Dokumen. Password disimpan terenkripsi di server."
+            >
+              {webdavLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-gray-100" />)}
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {webdavCfg && (
+                    <div className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
+                      <CheckCircle className="h-5 w-5 shrink-0 text-sky-600" />
+                      <div>
+                        <p className="text-sm font-semibold text-sky-800">WebDAV terkonfigurasi</p>
+                        <p className="text-xs text-sky-700">{webdavCfg.baseUrl} · {webdavCfg.documentReviewFolder}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold text-slate-700">Catatan penggunaan</p>
+                    <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                      <li>Gunakan URL endpoint WebDAV, misalnya `https://cloud.example.com/remote.php/dav/files/namauser`.</li>
+                      <li>Folder Review Dokumen akan dipakai sebagai base folder sinkronisasi dokumen milik user ini.</li>
+                      <li>Sebaiknya gunakan HTTPS agar koneksi dan kredensial lebih aman.</li>
+                    </ul>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormInput
+                      label="URL WebDAV *"
+                      value={webdavBaseUrl}
+                      onChange={setWebdavBaseUrl}
+                      placeholder="https://cloud.example.com/remote.php/dav/files/sekretaris"
+                      fullWidth
+                    />
+                    <FormInput
+                      label="Username *"
+                      value={webdavUsername}
+                      onChange={setWebdavUsername}
+                      placeholder="sekretaris"
+                    />
+                    <FormInput
+                      label="Folder Review Dokumen"
+                      value={webdavFolder}
+                      onChange={setWebdavFolder}
+                      placeholder="/review-dokumen"
+                      hint="Contoh: /Review Dokumen/2026"
+                    />
+                    <label className="block md:col-span-2">
+                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">Password WebDAV *</span>
+                      <div className="relative">
+                        <input
+                          type={showWebdavPwd ? 'text' : 'password'}
+                          value={webdavPassword}
+                          onChange={(e) => setWebdavPassword(e.target.value)}
+                          placeholder={webdavCfg ? 'Kosongkan jika tidak ingin ubah password' : 'Masukkan password WebDAV'}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-10 text-sm text-gray-800 outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowWebdavPwd((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showWebdavPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      {webdavCfg && <p className="mt-1 text-xs text-gray-400">Isi hanya jika ingin mengganti password WebDAV.</p>}
+                    </label>
+                  </div>
+
+                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={webdavEnabled}
+                      onChange={(e) => setWebdavEnabled(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Aktifkan WebDAV untuk Review Dokumen</p>
+                      <p className="text-xs text-gray-500">Simpan konfigurasi ini sebagai target folder dokumen milik user.</p>
+                    </div>
+                  </label>
+
+                  {webdavVerifyResult && (
+                    <div className={`flex items-center gap-2 rounded-xl border p-3 text-sm ${webdavVerifyResult.ok ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                      {webdavVerifyResult.ok ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                      {webdavVerifyResult.msg}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => void verifyWebdavConfig()}
+                      disabled={webdavVerifying || !webdavBaseUrl || !webdavUsername || !webdavPassword}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {webdavVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ServerIcon className="h-4 w-4" />}
+                      Test Koneksi
+                    </button>
+                    <SaveButton onClick={() => void saveWebdavConfig()} loading={webdavSaving} label="Simpan Konfigurasi" />
                   </div>
                 </div>
               )}

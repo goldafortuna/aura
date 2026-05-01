@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { requireSecretary } from '../../../../lib/middleware/auth';
 import { getObjectStorageProvider, uploadObject } from '../../../../lib/objectStorage';
 import { validateUploadedFile } from '../../../../lib/utils/fileValidation';
 import { internalServerErrorResponse } from '../../../../lib/nextHttpErrors';
+import { db } from '../../../../db';
+import { webdavConfigs } from '../../../../db/schema';
+import { decrypt } from '../../../../lib/encryption';
+import { uploadFileToWebdav } from '../../../../lib/webdav';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,6 +58,12 @@ export async function POST(request: Request) {
       fileSize: number;
       storagePath: string;
     }> = [];
+    const warnings: string[] = [];
+    const [webdavConfig] = await db
+      .select()
+      .from(webdavConfigs)
+      .where(eq(webdavConfigs.userId, dbUser.id))
+      .limit(1);
 
     for (const file of files) {
       if (file.size > MAX_BYTES) {
@@ -102,6 +113,29 @@ export async function POST(request: Request) {
         );
       }
 
+      if (webdavConfig?.isEnabled) {
+        try {
+          await uploadFileToWebdav({
+            baseUrl: webdavConfig.baseUrl,
+            username: webdavConfig.username,
+            password: decrypt(webdavConfig.password),
+            documentReviewFolder: webdavConfig.documentReviewFolder,
+            filename: safeName,
+            body: arrayBuffer,
+            contentType: validation.detectedMimeType || 'application/octet-stream',
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown WebDAV error';
+          console.warn('[uploads/documents] WebDAV sync warning:', {
+            userId: dbUser.id,
+            filename: safeName,
+            documentReviewFolder: webdavConfig.documentReviewFolder,
+            message,
+          });
+          warnings.push(`WebDAV gagal untuk ${safeName}: ${message}`);
+        }
+      }
+
       results.push({
         filename: safeName,
         fileType: validation.detectedMimeType || 'application/octet-stream',
@@ -110,7 +144,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ data: results }, { status: 201 });
+    return NextResponse.json({ data: results, warnings }, { status: 201 });
   } catch (error) {
     return internalServerErrorResponse(
       'uploads/documents/route',

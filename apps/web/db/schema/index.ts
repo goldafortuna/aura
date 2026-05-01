@@ -9,3 +9,4 @@ export * from './waReminderTemplates';
 export * from './unitKerja';
 export * from './academy';
 export * from './timeSavings';
+export * from './webdav';
