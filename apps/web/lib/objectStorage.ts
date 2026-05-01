@@ -163,6 +163,11 @@ function inferContentTypeFromPath(objectPath: string) {
       return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     case '.doc':
       return 'application/msword';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
     case '.txt':
       return 'text/plain; charset=utf-8';
     default:

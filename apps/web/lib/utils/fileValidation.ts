@@ -7,6 +7,8 @@ const ALLOWED_FILE_TYPES = {
   'application/pdf': [0x25, 0x50, 0x44, 0x46], // %PDF
   'application/msword': [0xD0, 0xCF, 0x11, 0xE0], // OLE Compound File (.doc)
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [0x50, 0x4B], // PK (ZIP format)
+  'image/png': [0x89, 0x50, 0x4E, 0x47], // PNG
+  'image/jpeg': [0xFF, 0xD8, 0xFF], // JPEG/JPG
 };
 
 // Additional magic bytes for DOCX files (more specific)
@@ -51,6 +53,16 @@ export function validateFileTypeByMagicBytes(fileBuffer: ArrayBuffer, expectedMi
       signature.every((byte, index) => bytes[index] === byte)
     );
   }
+  else if (expectedMimeType === 'image/png') {
+    const signature = ALLOWED_FILE_TYPES['image/png'];
+    return bytes.length >= signature.length &&
+      signature.every((byte, index) => bytes[index] === byte);
+  }
+  else if (expectedMimeType === 'image/jpeg') {
+    const signature = ALLOWED_FILE_TYPES['image/jpeg'];
+    return bytes.length >= signature.length &&
+      signature.every((byte, index) => bytes[index] === byte);
+  }
   
   return false;
 }
@@ -68,6 +80,25 @@ export function detectMimeTypeByMagicBytes(fileBuffer: ArrayBuffer): string | nu
       bytes[0] === 0x25 && bytes[1] === 0x50 && 
       bytes[2] === 0x44 && bytes[3] === 0x46) {
     return 'application/pdf';
+  }
+
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4E &&
+    bytes[3] === 0x47
+  ) {
+    return 'image/png';
+  }
+
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xFF &&
+    bytes[1] === 0xD8 &&
+    bytes[2] === 0xFF
+  ) {
+    return 'image/jpeg';
   }
 
   // Check for legacy DOC (OLE Compound File)
@@ -109,7 +140,7 @@ export function validateUploadedFile(fileBuffer: ArrayBuffer, clientMimeType: st
     return {
       isValid: false,
       detectedMimeType: null,
-      error: 'File type not recognized. Only PDF and DOCX files are allowed.'
+      error: 'File type not recognized. Only PDF, DOC, DOCX, PNG, and JPG are allowed.'
     };
   }
   

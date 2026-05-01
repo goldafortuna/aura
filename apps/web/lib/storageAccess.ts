@@ -1,9 +1,10 @@
 import { and, eq, or } from 'drizzle-orm';
 import { db } from '../db';
-import { documents, meetingMinutes } from '../db/schema';
+import { documents, meetingMinutes, taskAttachments, tasks } from '../db/schema';
 
 const DOCUMENTS_PREFIX = 'documents';
 const MEETING_MINUTES_PREFIX = 'meeting-minutes';
+const TASK_ATTACHMENTS_PREFIX = 'task-attachments';
 
 function normalizeStoragePath(input: string) {
   const normalized = input.replace(/\\/g, '/').trim().replace(/^\/+/, '');
@@ -21,6 +22,7 @@ export function getUserStoragePrefixes(userId: string) {
   return [
     `${DOCUMENTS_PREFIX}/${userId}/`,
     `${MEETING_MINUTES_PREFIX}/${userId}/`,
+    `${TASK_ATTACHMENTS_PREFIX}/${userId}/`,
   ] as const;
 }
 
@@ -79,6 +81,17 @@ export async function userOwnsStoragePath(userId: string, input: string) {
     .limit(1);
 
   if (meetingRow) {
+    return { ok: true as const, normalizedPath };
+  }
+
+  const [taskAttachmentRow] = await db
+    .select({ id: taskAttachments.id })
+    .from(taskAttachments)
+    .innerJoin(tasks, eq(tasks.id, taskAttachments.taskId))
+    .where(and(eq(tasks.userId, userId), eq(taskAttachments.storagePath, normalizedPath)))
+    .limit(1);
+
+  if (taskAttachmentRow) {
     return { ok: true as const, normalizedPath };
   }
 

@@ -17,6 +17,7 @@
     "db:ensure-user-access": "node scripts/ensure-user-approval-roles-schema.cjs",
     "db:ensure-system-settings": "node scripts/ensure-system-settings-global-schema.cjs",
     "db:ensure-time-savings": "node scripts/ensure-time-savings-schema.cjs",
+    "db:ensure-task-docs": "node scripts/ensure-task-management-docs-schema.cjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node scripts/seed.js",
