@@ -36,6 +36,44 @@ import { automationMinutesFromStartedAt, recordWaReminderSavings } from '../../.
 const app = new Hono();
 const externalApiRateLimit = createRateLimitMiddleware(10, 60_000);
 const readHeavyExternalApiRateLimit = createRateLimitMiddleware(5, 60_000);
+const plannerReadRateLimit = createRateLimitMiddleware(20, 60_000);
+
+function handleGoogleCalendarRouteError(
+  c: Parameters<typeof internalServerError>[0],
+  scope: string,
+  err: unknown,
+  fallbackMessage: string,
+) {
+  const raw = err instanceof Error ? err.message.trim() : '';
+  if (raw) {
+    if (/invalid_grant|refresh token|revoked|expired or revoked/i.test(raw)) {
+      console.error(`[${scope}]`, err);
+      return c.json(
+        {
+          error:
+            'Koneksi Google Calendar sudah tidak valid atau kedaluwarsa. Putuskan lalu hubungkan kembali akun Google Calendar Anda.',
+        },
+        400,
+      );
+    }
+
+    if (
+      /Akses kalender ditolak|scope tidak cukup|insufficient authentication scopes|Insufficient Permission/i.test(
+        raw,
+      )
+    ) {
+      console.error(`[${scope}]`, err);
+      return c.json({ error: raw }, 400);
+    }
+
+    if (/Gagal memuat daftar kalender|GOOGLE_CLIENT_|Google Calendar belum dihubungkan/i.test(raw)) {
+      console.error(`[${scope}]`, err);
+      return c.json({ error: raw }, 400);
+    }
+  }
+
+  return internalServerError(c, scope, err, fallbackMessage);
+}
 
 type MockCalendarEvent = {
   id: string;
@@ -50,11 +88,11 @@ type MockCalendarEvent = {
   startMs: number;
 };
 
-function buildMockPlannerData() {
+function buildMockPlannerData(monthOffset = 0) {
   const todayRange = getTodayRangeInJakarta();
   const tomorrowRange = getTomorrowRangeInJakarta();
   const weekRange = getWeekRangeInJakarta();
-  const monthRange = getMonthRangeInJakarta();
+  const monthRange = getMonthRangeInJakarta(new Date(), monthOffset);
 
   const agendaTemplates = [
     ['Briefing pagi pimpinan', 'Ruang Kerja Pimpinan', 'Briefing ringkas agenda dan isu prioritas hari berjalan.'],
@@ -116,6 +154,7 @@ function buildMockPlannerData() {
       events: monthEvents,
       warnings: [] as string[],
       monthLabel: monthRange.monthLabel,
+      monthStartIso: monthRange.monthStartIso,
     },
   };
 
@@ -184,6 +223,7 @@ function buildMockPlannerData() {
       events: [todayEvent, tomorrowEvent, weekEvent].sort((a, b) => a.startMs - b.startMs),
       warnings: [] as string[],
       monthLabel: monthRange.monthLabel,
+      monthStartIso: monthRange.monthStartIso,
     },
   };
 }
@@ -455,7 +495,7 @@ app.get('/calendar-list', externalApiRateLimit, async (c) => {
       },
     });
   } catch (err) {
-    return internalServerError(
+    return handleGoogleCalendarRouteError(
       c,
       'google-calendar/calendar-list',
       err,
@@ -503,7 +543,7 @@ app.patch('/selection', externalApiRateLimit, async (c) => {
 
     return c.json({ data: { selectedCalendarIds: filtered } });
   } catch (err) {
-    return internalServerError(
+    return handleGoogleCalendarRouteError(
       c,
       'google-calendar/selection',
       err,
@@ -517,11 +557,11 @@ app.get('/tomorrow-reminder', readHeavyExternalApiRateLimit, async (c) => {
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const startedAtMs = Date.now();
 
-  const cal = await resolveCalendarAccess(dbUser.id);
-  if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
-  if (cal.chosen.length === 0) return c.json({ error: 'Tidak ada kalender yang dapat dibaca.' }, 400);
-
   try {
+    const cal = await resolveCalendarAccess(dbUser.id);
+    if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
+    if (cal.chosen.length === 0) return c.json({ error: 'Tidak ada kalender yang dapat dibaca.' }, 400);
+
     const tomorrowRange = getTomorrowRangeInJakarta();
     const { events, warnings } = await collectTomorrowEventsFromCalendars({
       accessToken: cal.accessToken,
@@ -566,7 +606,7 @@ app.get('/tomorrow-reminder', readHeavyExternalApiRateLimit, async (c) => {
       },
     });
   } catch (err) {
-    return internalServerError(
+    return handleGoogleCalendarRouteError(
       c,
       'google-calendar/tomorrow-reminder',
       err,
@@ -575,23 +615,29 @@ app.get('/tomorrow-reminder', readHeavyExternalApiRateLimit, async (c) => {
   }
 });
 
-app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
+app.get('/planner-events', plannerReadRateLimit, async (c) => {
   const dbUser = await requireSecretary(c);
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
+  const rawMonthOffset = c.req.query('monthOffset');
+  const parsedMonthOffset = rawMonthOffset ? Number.parseInt(rawMonthOffset, 10) : 0;
+  const monthOffset =
+    Number.isFinite(parsedMonthOffset) && parsedMonthOffset >= -24 && parsedMonthOffset <= 24
+      ? parsedMonthOffset
+      : 0;
 
   if (process.env.E2E_MOCK_GOOGLE_CALENDAR === '1') {
-    return c.json({ data: buildMockPlannerData() });
+    return c.json({ data: buildMockPlannerData(monthOffset) });
   }
 
-  const cal = await resolveCalendarAccess(dbUser.id);
-  if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
-  if (cal.chosen.length === 0) return c.json({ error: 'Tidak ada kalender yang dapat dibaca.' }, 400);
-
   try {
+    const cal = await resolveCalendarAccess(dbUser.id);
+    if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
+    if (cal.chosen.length === 0) return c.json({ error: 'Tidak ada kalender yang dapat dibaca.' }, 400);
+
     const todayRange = getTodayRangeInJakarta();
     const tomorrowRange = getTomorrowRangeInJakarta();
     const weekRange = getWeekRangeInJakarta();
-    const monthRange = getMonthRangeInJakarta();
+    const monthRange = getMonthRangeInJakarta(new Date(), monthOffset);
 
     const [todayResult, tomorrowResult, weekResult, monthResult] = await Promise.all([
       collectTomorrowEventsFromCalendars({
@@ -655,11 +701,12 @@ app.get('/planner-events', readHeavyExternalApiRateLimit, async (c) => {
           events: monthResult.events,
           warnings: monthResult.warnings,
           monthLabel: monthRange.monthLabel,
+          monthStartIso: monthRange.monthStartIso,
         },
       },
     });
   } catch (err) {
-    return internalServerError(
+    return handleGoogleCalendarRouteError(
       c,
       'google-calendar/planner-events',
       err,
@@ -673,11 +720,11 @@ app.get('/today-reminder', readHeavyExternalApiRateLimit, async (c) => {
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
   const startedAtMs = Date.now();
 
-  const cal = await resolveCalendarAccess(dbUser.id);
-  if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
-  if (cal.chosen.length === 0) return c.json({ error: 'Tidak ada kalender yang dapat dibaca.' }, 400);
-
   try {
+    const cal = await resolveCalendarAccess(dbUser.id);
+    if (!cal) return c.json({ error: 'Google Calendar belum dihubungkan.' }, 400);
+    if (cal.chosen.length === 0) return c.json({ error: 'Tidak ada kalender yang dapat dibaca.' }, 400);
+
     const todayRange = getTodayRangeInJakarta();
     const { events, warnings } = await collectTomorrowEventsFromCalendars({
       accessToken: cal.accessToken,
@@ -722,7 +769,7 @@ app.get('/today-reminder', readHeavyExternalApiRateLimit, async (c) => {
       },
     });
   } catch (err) {
-    return internalServerError(
+    return handleGoogleCalendarRouteError(
       c,
       'google-calendar/today-reminder',
       err,

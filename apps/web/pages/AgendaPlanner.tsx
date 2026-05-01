@@ -3,6 +3,8 @@ import {
   AlertCircle,
   Calendar as CalendarIcon,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Copy,
   Link2,
@@ -15,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  addMonths,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -59,6 +62,7 @@ interface MonthMeta {
   events: CalendarEvent[];
   warnings: string[];
   monthLabel: string;
+  monthStartIso: string;
 }
 
 interface PlannerData {
@@ -445,8 +449,15 @@ const WeekAgenda: React.FC<{ meta: WeekMeta }> = ({ meta }) => {
   );
 };
 
-const MonthCalendar: React.FC<{ meta: MonthMeta }> = ({ meta }) => {
-  const currentDate = new Date();
+const MonthCalendar: React.FC<{
+  meta: MonthMeta;
+  monthOffset: number;
+  onNavigate: (nextOffset: number) => void;
+  loading?: boolean;
+}> = ({ meta, monthOffset, onNavigate, loading }) => {
+  const currentDate = meta.monthStartIso
+    ? new Date(`${meta.monthStartIso}T00:00:00+07:00`)
+    : addMonths(new Date(), monthOffset);
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -476,8 +487,27 @@ const MonthCalendar: React.FC<{ meta: MonthMeta }> = ({ meta }) => {
           <h3 className="mt-1 text-xl font-bold text-gray-900">{meta.monthLabel || format(currentDate, 'MMMM yyyy', { locale: id })}</h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700">{meta.events.length} agenda bulan ini</span>
-          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">View 1 bulan</span>
+          <button
+            type="button"
+            onClick={() => onNavigate(monthOffset - 1)}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Bulan sebelumnya
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate(monthOffset + 1)}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            Bulan berikutnya
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <span className="rounded-full border border-primary-100 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700">
+            {meta.events.length} agenda {meta.monthLabel.toLowerCase()}
+          </span>
         </div>
       </div>
 
@@ -549,24 +579,32 @@ export const AgendaPlanner: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [waModal, setWaModal] = useState<{ text: string; title: string } | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
   const fetchRef = useRef(false);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (nextMonthOffset = monthOffset, forceStatusCheck = false) => {
     setLoading(true);
     setError(null);
     try {
-      const statusRes = await fetch('/api/google/calendar/status', { cache: 'no-store' });
-      if (!statusRes.ok) throw new Error(await readApiError(statusRes, 'Gagal cek koneksi'));
-      const statusJson = (await statusRes.json()) as { data?: { connected?: boolean } };
-      const connected = Boolean(statusJson.data?.connected);
-      setCalendarConnected(connected);
+      let connected = calendarConnected;
+      if (forceStatusCheck || connected === null) {
+        const statusRes = await fetch('/api/google/calendar/status', { cache: 'no-store' });
+        if (!statusRes.ok) throw new Error(await readApiError(statusRes, 'Gagal cek koneksi'));
+        const statusJson = (await statusRes.json()) as { data?: { connected?: boolean } };
+        connected = Boolean(statusJson.data?.connected);
+        setCalendarConnected(connected);
+      }
 
       if (!connected) {
         setLoading(false);
         return;
       }
 
-      const plannerRes = await fetch('/api/google/calendar/planner-events', { cache: 'no-store' });
+      const params = new URLSearchParams();
+      if (nextMonthOffset !== 0) params.set('monthOffset', String(nextMonthOffset));
+      const plannerRes = await fetch(`/api/google/calendar/planner-events${params.size ? `?${params.toString()}` : ''}`, {
+        cache: 'no-store',
+      });
       if (!plannerRes.ok) throw new Error(await readApiError(plannerRes, 'Gagal memuat agenda'));
       const plannerJson = (await plannerRes.json()) as { data?: PlannerData };
       if (plannerJson.data) setPlannerData(plannerJson.data);
@@ -575,13 +613,18 @@ export const AgendaPlanner: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [calendarConnected, monthOffset]);
 
   useEffect(() => {
     if (fetchRef.current) return;
     fetchRef.current = true;
-    void loadData();
+    void loadData(monthOffset, true);
   }, [loadData]);
+
+  useEffect(() => {
+    if (!fetchRef.current) return;
+    void loadData(monthOffset);
+  }, [loadData, monthOffset]);
 
   const handleConnectGoogle = async () => {
     setConnectingGoogle(true);
@@ -613,6 +656,7 @@ export const AgendaPlanner: React.FC = () => {
 
   const openWaModal = (text: string, title: string) => setWaModal({ text, title });
   const closeWaModal = () => setWaModal(null);
+  const handleMonthNavigate = (nextOffset: number) => setMonthOffset(nextOffset);
 
   return (
     <div className="space-y-6">
@@ -635,7 +679,7 @@ export const AgendaPlanner: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={() => void loadData()}
+              onClick={() => void loadData(monthOffset, true)}
               disabled={loading}
               className="inline-flex w-fit items-center gap-2 rounded-xl border border-primary-100 bg-white px-4 py-2.5 text-sm font-bold text-primary-800 shadow-sm transition-colors hover:bg-primary-50 disabled:opacity-60"
             >
@@ -751,7 +795,12 @@ export const AgendaPlanner: React.FC = () => {
             <WeekAgenda meta={plannerData.week} />
           </div>
 
-          <MonthCalendar meta={plannerData.month} />
+          <MonthCalendar
+            meta={plannerData.month}
+            monthOffset={monthOffset}
+            onNavigate={handleMonthNavigate}
+            loading={loading}
+          />
         </>
       ) : null}
 

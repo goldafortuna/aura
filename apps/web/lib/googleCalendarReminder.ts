@@ -574,11 +574,12 @@ export function getWeekRangeInJakarta(now = new Date()): {
   };
 }
 
-/** Bulan berjalan menurut kalender Asia/Jakarta. */
-export function getMonthRangeInJakarta(now = new Date()): {
+/** Bulan relatif terhadap bulan berjalan menurut kalender Asia/Jakarta. */
+export function getMonthRangeInJakarta(now = new Date(), monthOffset = 0): {
   timeMin: string;
   timeMax: string;
   monthLabel: string;
+  monthStartIso: string;
 } {
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta',
@@ -589,8 +590,8 @@ export function getMonthRangeInJakarta(now = new Date()): {
   const parts = fmt.formatToParts(now);
   const y = Number(parts.find((p) => p.type === 'year')!.value);
   const m = Number(parts.find((p) => p.type === 'month')!.value);
-  const firstDay = new Date(Date.UTC(y, m - 1, 1));
-  const lastDay = new Date(Date.UTC(y, m, 0));
+  const firstDay = new Date(Date.UTC(y, m - 1 + monthOffset, 1));
+  const lastDay = new Date(Date.UTC(firstDay.getUTCFullYear(), firstDay.getUTCMonth() + 1, 0));
   const pad = (n: number) => String(n).padStart(2, '0');
   const firstStr = `${firstDay.getUTCFullYear()}-${pad(firstDay.getUTCMonth() + 1)}-${pad(firstDay.getUTCDate())}`;
   const lastStr = `${lastDay.getUTCFullYear()}-${pad(lastDay.getUTCMonth() + 1)}-${pad(lastDay.getUTCDate())}`;
@@ -604,6 +605,7 @@ export function getMonthRangeInJakarta(now = new Date()): {
     timeMin: `${firstStr}T00:00:00${JAKARTA_OFFSET}`,
     timeMax: `${lastStr}T23:59:59${JAKARTA_OFFSET}`,
     monthLabel,
+    monthStartIso: firstStr,
   };
 }
 
