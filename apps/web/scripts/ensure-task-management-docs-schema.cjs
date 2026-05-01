@@ -62,6 +62,45 @@ async function main() {
       ON "task_attachments" ("checklist_item_id")
   `;
 
+  const checklistTemplate = [
+    { label: 'Surat Tugas', isRequired: false, sortOrder: 0 },
+    { label: 'E-Ticket', isRequired: false, sortOrder: 1 },
+    { label: 'Invoice', isRequired: false, sortOrder: 2 },
+    { label: 'Boarding Pass', isRequired: false, sortOrder: 3 },
+    { label: 'SPPD/Laporan Perjalanan Dinas', isRequired: false, sortOrder: 4 },
+    { label: 'Voucher/Invoice Hotel', isRequired: false, sortOrder: 5 },
+  ];
+
+  const travelTasks = await sql`
+    SELECT id
+    FROM "tasks"
+    WHERE "kind" = 'travel-accountability'
+  `;
+
+  for (const task of travelTasks) {
+    for (const item of checklistTemplate) {
+      await sql`
+        INSERT INTO "task_checklist_items" ("task_id", "label", "is_required", "sort_order")
+        SELECT ${task.id}, ${item.label}, ${item.isRequired}, ${item.sortOrder}
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM "task_checklist_items"
+          WHERE "task_id" = ${task.id}
+            AND "label" = ${item.label}
+        )
+      `;
+
+      await sql`
+        UPDATE "task_checklist_items"
+        SET "is_required" = ${item.isRequired},
+            "sort_order" = ${item.sortOrder},
+            "updated_at" = now()
+        WHERE "task_id" = ${task.id}
+          AND "label" = ${item.label}
+      `;
+    }
+  }
+
   console.log('ok task management docs schema ensured');
 }
 

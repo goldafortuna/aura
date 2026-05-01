@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
 import {
   AlertCircle,
   Calendar,
@@ -69,6 +68,8 @@ type ApiTask = {
     requiredCount: number;
     completedRequiredCount: number;
     isComplete: boolean;
+    totalAttachmentCount: number;
+    hasAnyDocument: boolean;
   };
 };
 
@@ -316,15 +317,15 @@ function TaskCard({ task, onEdit, onManageDocuments, onDelete, onStatusChange, d
             <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">{task.description}</p>
           ) : null}
           {isTravelTask ? (
-            <div className="mt-2 rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2">
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="font-semibold text-sky-800">
-                  Checklist {task.checklistSummary.completedRequiredCount}/{task.checklistSummary.requiredCount}
-                </span>
-                <span className={task.checklistSummary.isComplete ? 'font-semibold text-green-700' : 'text-sky-700'}>
-                  {task.checklistSummary.isComplete ? 'Lengkap' : 'Belum lengkap'}
-                </span>
-              </div>
+              <div className="mt-2 rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-sky-800">
+                    {task.checklistSummary.totalAttachmentCount} dokumen
+                  </span>
+                  <span className={task.checklistSummary.hasAnyDocument ? 'font-semibold text-green-700' : 'text-sky-700'}>
+                    {task.checklistSummary.hasAnyDocument ? 'Siap dikirim jika perlu' : 'Belum ada dokumen'}
+                  </span>
+                </div>
               {task.financePicEmail ? (
                 <p className="mt-1 truncate text-[11px] text-sky-700">PIC keuangan: {task.financePicEmail}</p>
               ) : (
@@ -530,7 +531,7 @@ function TaskModal({
                 <h2 className="font-semibold text-gray-900">{mode === 'create' ? 'Tambah Tugas Baru' : 'Edit Tugas'}</h2>
                 <p className="mt-1 text-xs text-gray-500">
                   {isTravelTask
-                    ? 'Mode pertanggungjawaban perjalanan dinas dengan checklist dokumen wajib.'
+                    ? 'Mode pertanggungjawaban perjalanan dinas dengan seluruh dokumen bersifat opsional.'
                     : 'Gunakan untuk task umum tanpa checklist dokumen khusus.'}
                 </p>
               </div>
@@ -644,8 +645,9 @@ function TaskModal({
                       />
                     </div>
                     <div className="mt-4 rounded-xl border border-dashed border-sky-200 bg-white/70 px-4 py-4 text-sm text-sky-800">
-                      Checklist default akan dibuat untuk Surat Tugas, E-Ticket, Invoice, dan Boarding Pass. Dokumen bisa
-                      datang bertahap dan diunggah nanti dari detail task.
+                      Checklist default akan dibuat untuk Surat Tugas, E-Ticket, Invoice, Boarding Pass, SPPD/Laporan
+                      Perjalanan Dinas, dan Voucher/Invoice Hotel. Semua kategori bersifat opsional, setiap kategori
+                      dapat diisi lebih dari satu dokumen, dan upload bisa dilakukan bertahap dari detail task.
                     </div>
                     {mode === 'edit' && task ? (
                       <button
@@ -764,7 +766,7 @@ function DocumentManagerModal({
 
   if (!open || !task) return null;
 
-  const canSendToFinance = !!task.financePicEmail && !!task.checklistSummary.isComplete;
+  const canSendToFinance = !!task.financePicEmail && !!task.checklistSummary.hasAnyDocument;
   const visibleChecklistItems = showIncompleteOnly
     ? task.checklistItems.filter((item) => !item.isCompleted)
     : task.checklistItems;
@@ -834,8 +836,8 @@ function DocumentManagerModal({
                       <p className="mt-2 text-sm leading-relaxed text-slate-600">
                         Sistem akan mencoba mengenali jenis dokumen dari isi file terlebih dahulu. Untuk gambar seperti
                         PNG/JPG/JPEG dan PDF scan yang tidak punya teks bawaan, sistem akan mencoba OCR via provider AI
-                        yang aktif, lalu fallback ke nama file bila perlu. Ini cocok saat Surat Tugas, E-Ticket,
-                        Invoice, dan Boarding Pass datang bertahap maupun bersamaan.
+                        yang aktif, lalu fallback ke nama file bila perlu. Checklist mendukung dokumen wajib dan opsional,
+                        dan setiap kategori bisa menampung lebih dari satu file sesuai kebutuhan.
                       </p>
                       <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
                         <div className="rounded-xl border border-white/80 bg-white/70 px-3 py-2">PDF, DOC, DOCX berbasis teks paling akurat</div>
@@ -948,6 +950,9 @@ function DocumentManagerModal({
                             {item.isCompleted ? 'OK' : item.sortOrder + 1}
                           </span>
                           <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                            Opsional
+                          </span>
                         </div>
                         <p className="mt-1 text-xs text-slate-500">
                           {item.attachments.length > 0 ? `${item.attachments.length} dokumen terunggah` : 'Belum ada dokumen terunggah'}
@@ -1045,18 +1050,16 @@ function DocumentManagerModal({
                 <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
                   <div className="flex items-center gap-2">
                     <ListChecks className="h-4 w-4 text-sky-700" />
-                    <p className="text-sm font-semibold text-slate-900">Status Kelengkapan</p>
+                    <p className="text-sm font-semibold text-slate-900">Status Dokumen</p>
                   </div>
                   <p className="mt-1 text-xs text-slate-600">
-                    {task.checklistSummary.completedRequiredCount}/{task.checklistSummary.requiredCount} dokumen wajib sudah lengkap.
+                    {task.checklistSummary.totalAttachmentCount} dokumen telah diunggah di seluruh kategori.
                   </p>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500"
                       style={{
-                        width: task.checklistSummary.requiredCount > 0
-                          ? `${(task.checklistSummary.completedRequiredCount / task.checklistSummary.requiredCount) * 100}%`
-                          : '0%',
+                        width: `${Math.min(100, task.checklistSummary.totalAttachmentCount * 20)}%`,
                       }}
                     />
                   </div>
@@ -1066,7 +1069,7 @@ function DocumentManagerModal({
                   <p className="text-sm font-semibold text-slate-900">PIC Keuangan</p>
                   <p className="mt-1 text-sm text-slate-600">{task.financePicEmail ?? 'Belum diisi di task'}</p>
                   <p className="mt-2 text-xs text-slate-500">
-                    Tombol kirim akan aktif setelah seluruh checklist wajib memiliki minimal satu file.
+                    Tombol kirim akan aktif setelah email PIC diisi dan minimal satu dokumen berhasil diunggah.
                   </p>
                   <button
                     type="button"
@@ -1174,23 +1177,25 @@ function DocumentManagerModal({
                             className="flex min-h-[420px] min-w-full items-center justify-center bg-white p-3"
                             style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top center' }}
                           >
-                            <Image
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
                               src={previewAttachment.downloadUrl}
                               alt={previewAttachment.filename}
-                              width={1200}
-                              height={900}
-                              unoptimized
                               className="max-h-[420px] w-full object-contain bg-white"
                             />
                           </div>
                         </div>
                       ) : isPreviewablePdf(previewAttachment.fileType, previewAttachment.filename) ? (
                         <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                          <iframe
-                            src={`${previewAttachment.downloadUrl}#zoom=${previewZoom}`}
-                            title={previewAttachment.filename}
+                          <object
+                            data={`${previewAttachment.downloadUrl}#zoom=${previewZoom}`}
+                            type="application/pdf"
                             className="h-[420px] w-full bg-white"
-                          />
+                          >
+                            <div className="flex h-[420px] items-center justify-center px-4 text-sm text-slate-600">
+                              Preview PDF tidak tersedia di browser ini. Gunakan tombol <span className="mx-1 font-semibold">Buka tab baru</span>.
+                            </div>
+                          </object>
                         </div>
                       ) : (
                         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
@@ -1211,9 +1216,11 @@ function DocumentManagerModal({
                     Versi saat ini mencoba membaca isi PDF/DOC/DOCX terlebih dahulu. Untuk file gambar PNG/JPG/JPEG
                     dan PDF scan yang tidak mengandung teks bawaan, sistem juga akan mencoba OCR lewat provider AI
                     yang aktif. Jika OCR gagal atau provider belum mendukung vision/file input, sistem akan fallback ke
-                    heuristik nama file. Upload manual per item tetap disediakan untuk koreksi akhir. Contoh yang mudah dikenali:
+                    heuristik nama file. Dokumen opsional seperti SPPD/Laporan Perjalanan Dinas dan Voucher/Invoice
+                    Hotel tidak wajib ada, tetapi bisa diunggah bila memang diperlukan. Upload manual per item tetap
+                    disediakan untuk koreksi akhir. Contoh yang mudah dikenali:
                     <br />
-                    `surat-tugas.pdf`, `eticket-jakarta.pdf`, `invoice-hotel.pdf`, `boarding-pass.jpg`.
+                    `surat-tugas.pdf`, `eticket-jakarta.pdf`, `invoice-hotel.pdf`, `boarding-pass.jpg`, `sppd.pdf`, `voucher-hotel.pdf`.
                   </p>
                 </div>
               </div>
@@ -1793,8 +1800,8 @@ export const TaskManagement: React.FC = () => {
             <p className="text-sm font-semibold text-slate-900">Checklist Perjadin</p>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            Template otomatis mencakup Surat Tugas, E-Ticket, Invoice, dan Boarding Pass. Setelah seluruh item lengkap,
-            dokumen dapat langsung dikirim ke email PIC keuangan.
+            Template otomatis mencakup 6 kategori dokumen yang seluruhnya opsional. Setiap jenis dokumen bisa berisi
+            lebih dari satu file, dan task tetap bisa dikirim ke email PIC keuangan selama minimal ada satu dokumen.
           </p>
         </div>
       </div>

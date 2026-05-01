@@ -19,11 +19,13 @@ const TASK_ATTACHMENT_PREFIX = 'task-attachments';
 const MAX_FILES = 5;
 const MAX_BYTES = 10 * 1024 * 1024;
 
-const TRAVEL_CHECKLIST_LABELS = [
-  'Surat Tugas',
-  'E-Ticket',
-  'Invoice',
-  'Boarding Pass',
+const TRAVEL_CHECKLIST_ITEMS = [
+  { label: 'Surat Tugas', isRequired: false },
+  { label: 'E-Ticket', isRequired: false },
+  { label: 'Invoice', isRequired: false },
+  { label: 'Boarding Pass', isRequired: false },
+  { label: 'SPPD/Laporan Perjalanan Dinas', isRequired: false },
+  { label: 'Voucher/Invoice Hotel', isRequired: false },
 ] as const;
 
 type TaskStatusValue = 'todo' | 'in-progress' | 'completed';
@@ -139,7 +141,26 @@ function classifyChecklistLabel(params: { filename: string; text?: string | null
     hasAll('subtotal', 'total') ||
     hasAll('jumlah tagihan', 'total')
   ) {
+    if (hasAny('hotel', 'penginapan', 'akomodasi', 'lodging', 'room')) {
+      return 'Voucher/Invoice Hotel';
+    }
     return 'Invoice';
+  }
+
+  if (
+    hasAny('sppd', 'laporan perjalanan dinas', 'perjalanan dinas', 'surat perintah perjalanan dinas') ||
+    hasAll('laporan', 'perjalanan') ||
+    hasAll('surat perintah', 'perjalanan dinas')
+  ) {
+    return 'SPPD/Laporan Perjalanan Dinas';
+  }
+
+  if (
+    hasAny('voucher hotel', 'invoice hotel', 'hotel voucher', 'hotel invoice') ||
+    hasAll('hotel', 'voucher') ||
+    hasAll('hotel', 'invoice')
+  ) {
+    return 'Voucher/Invoice Hotel';
   }
 
   return null;
@@ -210,7 +231,7 @@ function toIsoString(value: Date | string | null | undefined) {
 }
 
 function serializeLegacyTasks(rows: LegacyTaskRow[]) {
-  return rows.map((task) => ({
+    return rows.map((task) => ({
     id: task.id,
     userId: task.user_id,
     title: task.title,
@@ -228,6 +249,8 @@ function serializeLegacyTasks(rows: LegacyTaskRow[]) {
       requiredCount: 0,
       completedRequiredCount: 0,
       isComplete: false,
+      totalAttachmentCount: 0,
+      hasAnyDocument: false,
     },
   }));
 }
@@ -311,21 +334,35 @@ async function getOwnedTask(userId: string, taskId: string) {
 
 async function ensureTravelChecklist(taskId: string) {
   const existing = await db
-    .select({ id: taskChecklistItems.id })
+    .select()
     .from(taskChecklistItems)
-    .where(eq(taskChecklistItems.taskId, taskId))
-    .limit(1);
+    .where(eq(taskChecklistItems.taskId, taskId));
 
-  if (existing.length > 0) return;
+  const existingByLabel = new Map(existing.map((item) => [item.label, item] as const));
 
-  await db.insert(taskChecklistItems).values(
-    TRAVEL_CHECKLIST_LABELS.map((label, index) => ({
-      taskId,
-      label,
-      isRequired: true,
-      sortOrder: index,
-    })),
-  );
+  for (const [index, config] of TRAVEL_CHECKLIST_ITEMS.entries()) {
+    const current = existingByLabel.get(config.label);
+    if (!current) {
+      await db.insert(taskChecklistItems).values({
+        taskId,
+        label: config.label,
+        isRequired: config.isRequired,
+        sortOrder: index,
+      });
+      continue;
+    }
+
+    if (current.isRequired !== config.isRequired || current.sortOrder !== index) {
+      await db
+        .update(taskChecklistItems)
+        .set({
+          isRequired: config.isRequired,
+          sortOrder: index,
+          updatedAt: new Date(),
+        })
+        .where(eq(taskChecklistItems.id, current.id));
+    }
+  }
 }
 
 async function loadTaskGraph(userId: string, taskIds?: string[]) {
@@ -403,6 +440,7 @@ function serializeTasks(input: {
 
     const requiredCount = checklist.filter((item) => item.isRequired).length;
     const completedRequiredCount = checklist.filter((item) => item.isRequired && item.isCompleted).length;
+    const totalAttachmentCount = checklist.reduce((sum, item) => sum + item.attachments.length, 0);
 
     return {
       ...task,
@@ -413,6 +451,8 @@ function serializeTasks(input: {
         requiredCount,
         completedRequiredCount,
         isComplete: requiredCount > 0 && requiredCount === completedRequiredCount,
+        totalAttachmentCount,
+        hasAnyDocument: totalAttachmentCount > 0,
       },
     };
   });
@@ -448,7 +488,7 @@ function buildFinanceEmailHtml(payload: {
         </div>
         <div style="padding:24px 28px;">
           <p style="margin:0 0 16px;font-size:14px;line-height:1.7;">
-            Tugas <strong>${escapeHtml(payload.title)}</strong> telah dilengkapi seluruh dokumen wajib dan dikirimkan untuk tindak lanjut bagian keuangan.
+            Tugas <strong>${escapeHtml(payload.title)}</strong> telah dilengkapi dokumen yang diperlukan dan dikirimkan untuk tindak lanjut bagian keuangan.
           </p>
           ${
             payload.description
@@ -910,8 +950,8 @@ app.post('/:id/send-to-finance', async (c) => {
     return c.json({ error: 'Email PIC keuangan belum diisi.' }, 400);
   }
 
-  if (!serialized.checklistSummary.isComplete) {
-    return c.json({ error: 'Dokumen wajib belum lengkap. Lengkapi seluruh checklist terlebih dahulu.' }, 400);
+  if (!serialized.checklistSummary.hasAnyDocument) {
+    return c.json({ error: 'Minimal satu dokumen perlu diunggah sebelum dikirim ke keuangan.' }, 400);
   }
 
   const [emailCfg] = await db
