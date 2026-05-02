@@ -93,7 +93,7 @@ const highlights = [
 
 export default function Home() {
   return (
-    <main className="relative flex h-screen w-full flex-col overflow-hidden bg-[#f8f7ff]">
+    <main className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-[#f8f7ff]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="animate-landing-blob-1 absolute -right-40 -top-40 h-[500px] w-[500px] rounded-full bg-violet-200/40 blur-3xl will-change-transform" />
         <div className="animate-landing-blob-2 absolute -bottom-40 -left-40 h-[500px] w-[500px] rounded-full bg-blue-200/40 blur-3xl will-change-transform" />
