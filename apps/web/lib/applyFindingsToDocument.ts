@@ -43,17 +43,123 @@ function escapeXml(str: string): string {
 }
 
 /**
- * Builds an action paragraph XML by cloning the template paragraph's pPr and rPr,
- * then replacing the text content with the action text.
- * Falls back to a plain paragraph if template extraction fails.
+ * Injects a simple decimal (1., 2., 3.) numbering definition into word/numbering.xml.
+ * Uses IDs beyond the existing max to avoid collisions.
+ * Returns the new numId to reference in <w:numPr>.
  */
-function buildActionParaFromTemplate(templateParaXml: string, actionText: string): string {
-  // Extract <w:pPr>...</w:pPr>
-  const pPrMatch = templateParaXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/);
-  const pPr = pPrMatch ? pPrMatch[0] : '';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function injectDecimalNumbering(zip: any): number {
+  const buildAbstractNum = (abstractId: number) =>
+    `<w:abstractNum w:abstractNumId="${abstractId}">` +
+    `<w:multiLevelType w:val="singleLevel"/>` +
+    `<w:lvl w:ilvl="0">` +
+    `<w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/>` +
+    `<w:lvlJc w:val="left"/>` +
+    `<w:pPr><w:ind w:left="360" w:hanging="360"/></w:pPr>` +
+    `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>` +
+    `<w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>` +
+    `</w:lvl></w:abstractNum>`;
 
-  // Extract <w:rPr>...</w:rPr> from inside the run (not the one in pPr)
-  // Find the run block first, then extract its rPr
+  const buildNum = (numId: number, abstractId: number) =>
+    `<w:num w:numId="${numId}"><w:abstractNumId w:val="${abstractId}"/></w:num>`;
+
+  const numFile = zip.file('word/numbering.xml');
+
+  if (!numFile) {
+    // Create numbering.xml from scratch, plus wire up the relationship and content type
+    const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    zip.file(
+      'word/numbering.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+        `<w:numbering ${ns}>\n${buildAbstractNum(1)}\n${buildNum(1, 1)}\n</w:numbering>`,
+    );
+
+    // Add relationship
+    const relsFile = zip.file('word/_rels/document.xml.rels');
+    if (relsFile) {
+      let rels = relsFile.asText();
+      const numRel =
+        `<Relationship Id="rIdNumKep" ` +
+        `Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" ` +
+        `Target="numbering.xml"/>`;
+      rels = rels.replace('</Relationships>', numRel + '</Relationships>');
+      zip.file('word/_rels/document.xml.rels', rels);
+    }
+
+    // Add content type
+    const ctFile = zip.file('[Content_Types].xml');
+    if (ctFile) {
+      let ct = ctFile.asText();
+      const numCt =
+        `<Override PartName="/word/numbering.xml" ` +
+        `ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>`;
+      ct = ct.replace('</Types>', numCt + '</Types>');
+      zip.file('[Content_Types].xml', ct);
+    }
+
+    return 1;
+  }
+
+  let numXml = numFile.asText();
+
+  // Find the current max abstractNumId and numId to avoid collisions
+  const abstractIds: number[] = [];
+  const abstractIdRe = /w:abstractNum\s+w:abstractNumId="(\d+)"/g;
+  let am: RegExpExecArray | null;
+  while ((am = abstractIdRe.exec(numXml)) !== null) abstractIds.push(parseInt(am[1]));
+
+  const numIds: number[] = [];
+  const numIdRe = /<w:num\s[^>]*w:numId="(\d+)"/g;
+  let nm: RegExpExecArray | null;
+  while ((nm = numIdRe.exec(numXml)) !== null) numIds.push(parseInt(nm[1]));
+  const newAbstractId = (abstractIds.length > 0 ? Math.max(...abstractIds) : 0) + 1;
+  const newNumId = (numIds.length > 0 ? Math.max(...numIds) : 0) + 1;
+
+  // Insert abstractNum before the first <w:num> block (OOXML requires abstractNums first)
+  const firstNumMatch = numXml.match(/<w:num\s/);
+  if (firstNumMatch?.index !== undefined) {
+    numXml =
+      numXml.slice(0, firstNumMatch.index) +
+      buildAbstractNum(newAbstractId) +
+      numXml.slice(firstNumMatch.index);
+  } else {
+    numXml = numXml.replace('</w:numbering>', buildAbstractNum(newAbstractId) + '</w:numbering>');
+  }
+
+  // Append <w:num> before </w:numbering>
+  numXml = numXml.replace('</w:numbering>', buildNum(newNumId, newAbstractId) + '</w:numbering>');
+  zip.file('word/numbering.xml', numXml);
+  return newNumId;
+}
+
+/**
+ * Builds an action paragraph XML by cloning the template paragraph's pPr and rPr.
+ * When wordNumId is provided, injects <w:numPr> and drops any existing numPr/ind
+ * so Word handles the numbering and hanging indent natively.
+ */
+function buildActionParaFromTemplate(
+  templateParaXml: string,
+  actionText: string,
+  wordNumId: number,
+): string {
+  const pPrMatch = templateParaXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/);
+  let pPr = pPrMatch ? pPrMatch[0] : '';
+
+  // Strip existing numPr and ind — the injected abstractNum definition provides both
+  pPr = pPr.replace(/<w:numPr[\s\S]*?<\/w:numPr>/, '');
+  pPr = pPr.replace(/<w:ind(?:\s[^/]*)?\/>/, '');
+
+  // Inject <w:numPr> right after <w:pStyle> if present, otherwise after <w:pPr>
+  const numPrXml = `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${wordNumId}"/></w:numPr>`;
+  if (/<\/w:pStyle>/.test(pPr)) {
+    pPr = pPr.replace(/<\/w:pStyle>/, `</w:pStyle>${numPrXml}`);
+  } else if (pPr) {
+    pPr = pPr.replace('<w:pPr>', `<w:pPr>${numPrXml}`);
+  } else {
+    pPr = `<w:pPr>${numPrXml}<w:spacing w:after="0" w:line="276" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr>`;
+  }
+
+  // Clone rPr from the template run
   const rBlock = templateParaXml.match(/<w:r[\s\S]*?<\/w:r>/);
   let rPr = '';
   if (rBlock) {
@@ -62,26 +168,38 @@ function buildActionParaFromTemplate(templateParaXml: string, actionText: string
   }
 
   const escaped = escapeXml(actionText);
-  const hasLeadingOrTrailingSpace = actionText.startsWith(' ') || actionText.endsWith(' ');
-  const tTag = hasLeadingOrTrailingSpace
-    ? `<w:t xml:space="preserve">${escaped}</w:t>`
-    : `<w:t>${escaped}</w:t>`;
+  const tTag =
+    actionText.startsWith(' ') || actionText.endsWith(' ')
+      ? `<w:t xml:space="preserve">${escaped}</w:t>`
+      : `<w:t>${escaped}</w:t>`;
 
   return `<w:p>${pPr}<w:r>${rPr}${tTag}</w:r></w:p>`;
 }
 
 /**
- * Fallback KEPUTUSAN XML when no template is found in the document.
- * Appends a minimal plain-text KEPUTUSAN section with numbered items.
+ * Fallback KEPUTUSAN XML when no template placeholder is found in the document.
+ * Uses Word numbering via wordNumId so items are properly formatted.
  */
-function buildFallbackKeputusanXml(ctas: ApprovedCta[]): string {
+function buildFallbackKeputusanXml(ctas: ApprovedCta[], wordNumId: number): string {
   if (ctas.length === 0) return '';
 
+  const pPr =
+    `<w:pPr>` +
+    `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${wordNumId}"/></w:numPr>` +
+    `<w:spacing w:after="0" w:line="276" w:lineRule="auto"/>` +
+    `<w:jc w:val="both"/>` +
+    `</w:pPr>`;
+  const rPr =
+    `<w:rPr>` +
+    `<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>` +
+    `<w:sz w:val="24"/><w:szCs w:val="24"/>` +
+    `</w:rPr>`;
+
   const lines: string[] = [];
-  ctas.forEach((cta, idx) => {
-    const numbered = `${idx + 1}. ${cta.action}`;
+  ctas.forEach((cta) => {
+    const escaped = escapeXml(cta.action);
     lines.push(
-      `<w:p><w:r><w:t xml:space="preserve">${escapeXml(numbered)}</w:t></w:r></w:p>`,
+      `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r></w:p>`,
       `<w:p><w:r><w:t></w:t></w:r></w:p>`,
     );
   });
@@ -117,6 +235,9 @@ async function applyToDocx(
 
   // ── 2. Fill KEPUTUSAN section with approved CTA actions ───────────────────
   if (approvedCtas.length > 0) {
+    // Inject a new decimal numbering definition so Word handles "1.", "2.", "3." natively
+    const keputusanNumId = injectDecimalNumbering(zip);
+
     let injected = false;
 
     // Strategy A: Find "1. " placeholder paragraph (UGM rapim notula template pattern).
@@ -149,24 +270,15 @@ async function applyToDocx(
           const isTemplate = />\s*1\s*\.[\s<]/.test(lastParaXml);
 
           if (isTemplate) {
-            // Build numbered action paragraphs using the template style, with blank line separators
+            // Build numbered action paragraphs — Word numbers them via keputusanNumId
             const emptyPara = `<w:p><w:r><w:t></w:t></w:r></w:p>`;
-
-            // If the template paragraph already has Word auto-numbering (<w:numPr>),
-            // don't add a manual "1. " prefix — Word will number the items automatically.
-            const templatePPrMatch = lastParaXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/);
-            const templatePPr = templatePPrMatch ? templatePPrMatch[0] : '';
-            const hasWordAutoNumbering = templatePPr.includes('<w:numPr');
-
             const actionParas = approvedCtas
-              .map((cta, idx) => {
-                const actionText = hasWordAutoNumbering ? cta.action : `${idx + 1}. ${cta.action}`;
-                return buildActionParaFromTemplate(lastParaXml, actionText) + emptyPara;
-              })
+              .map((cta) => buildActionParaFromTemplate(lastParaXml, cta.action, keputusanNumId) + emptyPara)
               .join('');
 
             // Replace the template placeholder with our action paragraphs
-            xml = xml.substring(0, lastParaStartIdx) +
+            xml =
+              xml.substring(0, lastParaStartIdx) +
               actionParas +
               xml.substring(lastParaEndIdx + '</w:p>'.length);
 
@@ -178,7 +290,7 @@ async function applyToDocx(
 
     // Strategy B: Fallback — append action paragraphs before <w:sectPr>
     if (!injected) {
-      const fallbackXml = buildFallbackKeputusanXml(approvedCtas);
+      const fallbackXml = buildFallbackKeputusanXml(approvedCtas, keputusanNumId);
       const insertAt = xml.lastIndexOf('<w:sectPr');
       if (insertAt >= 0) {
         xml = xml.slice(0, insertAt) + fallbackXml + xml.slice(insertAt);
