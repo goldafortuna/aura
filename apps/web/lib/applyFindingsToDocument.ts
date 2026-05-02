@@ -151,10 +151,17 @@ async function applyToDocx(
           if (isTemplate) {
             // Build numbered action paragraphs using the template style, with blank line separators
             const emptyPara = `<w:p><w:r><w:t></w:t></w:r></w:p>`;
+
+            // If the template paragraph already has Word auto-numbering (<w:numPr>),
+            // don't add a manual "1. " prefix — Word will number the items automatically.
+            const templatePPrMatch = lastParaXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/);
+            const templatePPr = templatePPrMatch ? templatePPrMatch[0] : '';
+            const hasWordAutoNumbering = templatePPr.includes('<w:numPr');
+
             const actionParas = approvedCtas
               .map((cta, idx) => {
-                const numbered = `${idx + 1}. ${cta.action}`;
-                return buildActionParaFromTemplate(lastParaXml, numbered) + emptyPara;
+                const actionText = hasWordAutoNumbering ? cta.action : `${idx + 1}. ${cta.action}`;
+                return buildActionParaFromTemplate(lastParaXml, actionText) + emptyPara;
               })
               .join('');
 
