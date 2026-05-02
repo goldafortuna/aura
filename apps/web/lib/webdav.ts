@@ -1,3 +1,6 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
 type WebdavConnectionInput = {
   baseUrl: string;
   username: string;
@@ -17,6 +20,83 @@ function trimTrailingSlashes(value: string) {
   return value.replace(/\/+$/, '');
 }
 
+function isBlockedIpv4(address: string) {
+  const parts = address.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true;
+  }
+
+  const [a, b] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isBlockedIpAddress(address: string) {
+  const ipVersion = isIP(address);
+  if (ipVersion === 4) return isBlockedIpv4(address);
+  if (ipVersion !== 6) return true;
+
+  const normalized = address.toLowerCase();
+  if (normalized.startsWith('::ffff:')) {
+    return isBlockedIpv4(normalized.slice('::ffff:'.length));
+  }
+
+  return (
+    normalized === '::' ||
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:') ||
+    normalized.startsWith('ff')
+  );
+}
+
+function normalizeHostname(hostname: string) {
+  return hostname.replace(/^\[(.*)\]$/, '$1').replace(/\.$/, '').toLowerCase();
+}
+
+function assertAllowedWebdavUrl(url: URL) {
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('URL WebDAV harus menggunakan protokol http atau https.');
+  }
+
+  if (url.username || url.password) {
+    throw new Error('URL WebDAV tidak boleh berisi kredensial.');
+  }
+
+  const hostname = normalizeHostname(url.hostname);
+  if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw new Error('URL WebDAV harus mengarah ke host publik.');
+  }
+
+  if (isIP(hostname) && isBlockedIpAddress(hostname)) {
+    throw new Error('URL WebDAV tidak boleh mengarah ke alamat lokal atau private.');
+  }
+}
+
+async function assertPublicWebdavEndpoint(urlString: string) {
+  const url = new URL(urlString);
+  assertAllowedWebdavUrl(url);
+
+  const hostname = normalizeHostname(url.hostname);
+  if (isIP(hostname)) return;
+
+  const addresses = await lookup(hostname, { all: true });
+  if (addresses.length === 0 || addresses.some((entry) => isBlockedIpAddress(entry.address))) {
+    throw new Error('URL WebDAV harus mengarah ke alamat publik.');
+  }
+}
+
 export function normalizeWebdavFolder(input: string) {
   const raw = input.trim();
   if (!raw) return '/';
@@ -32,6 +112,7 @@ export function resolveWebdavConfig(input: WebdavConnectionInput): WebdavResolve
   const documentReviewFolder = normalizeWebdavFolder(input.documentReviewFolder);
 
   const parsedBaseUrl = new URL(baseUrl);
+  assertAllowedWebdavUrl(parsedBaseUrl);
   const normalizedBasePath = trimTrailingSlashes(parsedBaseUrl.pathname || '');
   const effectivePath = `${normalizedBasePath}${documentReviewFolder === '/' ? '' : documentReviewFolder}`;
   parsedBaseUrl.pathname = effectivePath || '/';
@@ -77,10 +158,12 @@ export async function ensureWebdavFolder(input: WebdavConnectionInput) {
 
   for (let index = 0; index < segments.length; index += 1) {
     const partialUrl = buildFolderUrl(resolved.baseUrl, segments.slice(0, index + 1));
+    await assertPublicWebdavEndpoint(partialUrl);
     const response = await fetch(partialUrl, {
       method: 'MKCOL',
       headers: createWebdavHeaders(resolved.username, resolved.password),
       cache: 'no-store',
+      redirect: 'manual',
     });
 
     if ([201, 405].includes(response.status)) continue;
@@ -108,6 +191,7 @@ export async function uploadFileToWebdav(
   const targetUrl = new URL(resolved.folderUrl);
   const folderSegments = targetUrl.pathname.split('/').filter(Boolean);
   targetUrl.pathname = `/${[...folderSegments, input.filename].map(encodeURIComponent).join('/')}`;
+  await assertPublicWebdavEndpoint(targetUrl.toString());
   const requestBody =
     input.body instanceof ArrayBuffer
       ? Buffer.from(input.body)
@@ -126,6 +210,7 @@ export async function uploadFileToWebdav(
     }),
     body: requestBlob,
     cache: 'no-store',
+    redirect: 'manual',
   });
 
   if (![200, 201, 204].includes(response.status)) {
@@ -143,6 +228,7 @@ export async function uploadFileToWebdav(
 
 export async function verifyWebdavConnection(input: WebdavConnectionInput) {
   const resolved = resolveWebdavConfig(input);
+  await assertPublicWebdavEndpoint(resolved.folderUrl);
   const headers = {
     Authorization: buildBasicAuthHeader(resolved.username, resolved.password),
   };
@@ -156,6 +242,7 @@ export async function verifyWebdavConnection(input: WebdavConnectionInput) {
     },
     body: `<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname /></d:prop></d:propfind>`,
     cache: 'no-store',
+    redirect: 'manual',
   });
 
   if ([200, 207].includes(propfindRes.status)) {
@@ -190,6 +277,7 @@ export async function verifyWebdavConnection(input: WebdavConnectionInput) {
       method: 'HEAD',
       headers,
       cache: 'no-store',
+      redirect: 'manual',
     });
     if (headRes.ok) {
       return {
