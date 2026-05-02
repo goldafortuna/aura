@@ -31,6 +31,16 @@ export type ApplyResult = {
   filename: string;
 };
 
+/** Surface PizZip yang dipakai oleh injeksi numbering (hindari `any` tanpa plugin @typescript-eslint). */
+type DocxZipFileEntry = {
+  asText(): string;
+};
+
+type DocxZip = {
+  file(path: string): DocxZipFileEntry | null;
+  file(path: string, data: string): void;
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function escapeXml(str: string): string {
@@ -47,8 +57,7 @@ function escapeXml(str: string): string {
  * Uses IDs beyond the existing max to avoid collisions.
  * Returns the new numId to reference in <w:numPr>.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function injectDecimalNumbering(zip: any): number {
+function injectDecimalNumbering(zip: DocxZip): number {
   const buildAbstractNum = (abstractId: number) =>
     `<w:abstractNum w:abstractNumId="${abstractId}">` +
     `<w:multiLevelType w:val="singleLevel"/>` +
