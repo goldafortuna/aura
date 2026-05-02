@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import type { AiCallConfig } from './aiClient';
 
 function getErrorMessage(err: unknown) {
@@ -5,7 +6,15 @@ function getErrorMessage(err: unknown) {
 }
 
 export function toUserFacingAiError(err: unknown, attemptedConfigs: AiCallConfig[] = []) {
+  if (err instanceof ZodError) {
+    return 'Format respons AI tidak sesuai (Ringkasan/temuan tidak valid). Coba analisa ulang; dokumen sangat panjang bisa membuat respons terpotong — kurangi ukuran atau gunakan model lain.';
+  }
+
   const message = getErrorMessage(err);
+
+  if (/AI content was not valid JSON/i.test(message)) {
+    return 'Respons model AI bukan JSON yang valid. Coba analisa ulang; periksa model dan prompt di Pengaturan.';
+  }
   const primaryModel = attemptedConfigs[0]?.model;
 
   if (/not_found_error/i.test(message) && /model:/i.test(message)) {

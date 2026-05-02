@@ -93,7 +93,7 @@ app.get('/', async (c) => {
       displayName: 'Anthropic (Claude)',
       kind: 'anthropic' as const,
       defaultBaseUrl: 'https://api.anthropic.com',
-      defaultModel: 'claude-3-5-sonnet-20241022',
+      defaultModel: 'claude-sonnet-4-6',
       scope: 'user' as const,
       canEdit: canManagePersonal,
     },

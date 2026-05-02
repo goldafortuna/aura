@@ -35,6 +35,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getModelSelectOptions } from '../../lib/aiProviderModelCatalog';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1353,16 +1354,32 @@ export default function SettingsPage() {
                               }
                             />
 
-                            <FormInput
-                              label="Model"
-                              value={p.model}
-                              disabled={!p.canEdit}
-                              onChange={(v) =>
-                                setProviders((prev) =>
-                                  prev.map((x) => (x.provider === p.provider ? { ...x, model: v } : x)),
-                                )
-                              }
-                            />
+                            <label className="block">
+                              <span className="mb-1.5 block text-xs font-semibold text-gray-600">Model</span>
+                              <select
+                                disabled={!p.canEdit}
+                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-shadow focus:border-primary-400 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                                value={p.model}
+                                onChange={(e) =>
+                                  setProviders((prev) =>
+                                    prev.map((x) =>
+                                      x.provider === p.provider ? { ...x, model: e.target.value } : x,
+                                    ),
+                                  )
+                                }
+                                aria-label="Model AI"
+                              >
+                                {getModelSelectOptions(p.provider, p.model).map((opt) => (
+                                  <option key={`${p.provider}-${opt.value || '__empty'}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-xs text-gray-400">
+                                ID model mengikuti dokumentasi API tiap provider agar tidak salah ketik. Nilai di luar
+                                daftar ditampilkan jika masih tersimpan di database.
+                              </p>
+                            </label>
 
                             <FormInput
                               label="API Key"

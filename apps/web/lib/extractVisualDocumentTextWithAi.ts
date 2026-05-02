@@ -1,5 +1,7 @@
 import { loadActiveAiCallConfig } from './aiConfig';
+import { anthropicApiRoot } from './aiClient';
 import type { AiCallConfig } from './aiClient';
+import { resolveAnthropicModelId } from './anthropicModelId';
 
 function toBase64(bytes: Uint8Array) {
   return Buffer.from(bytes).toString('base64');
@@ -87,10 +89,10 @@ async function callAnthropicVisual(params: {
   mimeType: string;
   filename: string;
 }) {
-  const base = (params.cfg.baseUrl || 'https://api.anthropic.com').replace(/\/$/, '');
+  const root = anthropicApiRoot(params.cfg.baseUrl);
   const isPdf = params.mimeType === 'application/pdf';
 
-  const res = await fetch(`${base}/v1/messages`, {
+  const res = await fetch(`${root}/v1/messages`, {
     method: 'POST',
     headers: {
       'x-api-key': params.cfg.apiKey,
@@ -98,7 +100,7 @@ async function callAnthropicVisual(params: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: params.cfg.model,
+      model: resolveAnthropicModelId(params.cfg.model),
       max_tokens: 1200,
       temperature: 0,
       system:

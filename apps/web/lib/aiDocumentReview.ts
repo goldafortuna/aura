@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { confidence01Optional } from './aiConfidenceSchema';
 import type { AiCallConfig } from './aiClient';
 import { callAiForJsonSchema } from './aiClient';
+import { DEFAULT_ANTHROPIC_MESSAGES_MODEL } from './anthropicModelId';
 import { DEFAULT_DOCUMENT_REVIEW_SYSTEM_PROMPT } from './defaultAiPrompts';
 
 const findingSchema = z.object({
@@ -28,7 +29,7 @@ function defaultCfgFromEnv(): AiCallConfig {
       kind: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY || '',
       baseUrl: process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
-      model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+      model: process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MESSAGES_MODEL,
     };
   }
 

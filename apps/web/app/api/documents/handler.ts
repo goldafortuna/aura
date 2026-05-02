@@ -286,9 +286,8 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       })
       .where(and(eq(documents.id, id), eq(documents.userId, dbUser.id)));
 
-    // Log the full error server-side but return generic message to client
     console.error('[documents/analyze] Error:', err);
-    return c.json({ error: 'Analysis failed. Please try again later.' }, 500);
+    return c.json({ error: message }, 500);
   }
 });
 

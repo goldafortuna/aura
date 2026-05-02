@@ -56,7 +56,7 @@ router.get('/providers', async (c) => {
   const templates = [
     { provider: 'deepseek', displayName: 'DeepSeek', kind: 'openai_compatible' as const, defaultBaseUrl: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat', scope: 'global' as const, canEdit: canManageSystem },
     { provider: 'openai', displayName: 'OpenAI (GPT)', kind: 'openai_compatible' as const, defaultBaseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o-mini', scope: 'global' as const, canEdit: canManageSystem },
-    { provider: 'anthropic', displayName: 'Anthropic (Claude)', kind: 'anthropic' as const, defaultBaseUrl: 'https://api.anthropic.com', defaultModel: 'claude-3-5-sonnet-20241022', scope: 'user' as const, canEdit: canManagePersonal },
+    { provider: 'anthropic', displayName: 'Anthropic (Claude)', kind: 'anthropic' as const, defaultBaseUrl: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-6', scope: 'user' as const, canEdit: canManagePersonal },
   ];
 
   const data = templates.map((t) => {

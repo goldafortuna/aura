@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolveAnthropicModelId } from './anthropicModelId';
 import { extractFirstJsonCandidate } from './utils/json';
 
 export type AiTransportKind = 'openai_compatible' | 'anthropic';
@@ -201,16 +202,27 @@ async function callOpenAiCompatibleJson(params: {
   return content;
 }
 
+/** Normalizes host so we never call .../v1/v1/messages when baseUrl already ends with /v1 (common in settings). */
+export function anthropicApiRoot(baseUrl: string | null | undefined): string {
+  const fallback = 'https://api.anthropic.com';
+  let s = (baseUrl ?? fallback).trim().replace(/\/+$/, '');
+  if (!s) s = fallback;
+  if (s.endsWith('/v1')) s = s.slice(0, -3).replace(/\/+$/, '');
+  return s || fallback;
+}
+
 async function callAnthropicJson(params: {
   cfg: AiCallConfig;
   system: string;
   user: string;
   maxInputChars: number;
 }) {
-  const base = (params.cfg.baseUrl || 'https://api.anthropic.com').replace(/\/$/, '');
+  const root = anthropicApiRoot(params.cfg.baseUrl);
   const clippedUser = clipText(params.user, params.maxInputChars);
+  /** Output token ceiling for Messages API (avoid truncated JSON vs OpenAI path which allows higher). */
+  const maxOut = Math.min(Math.max(Number(process.env.AI_MAX_OUTPUT_TOKENS || 8192), 512), 8192);
 
-  const res = await fetch(`${base}/v1/messages`, {
+  const res = await fetch(`${root}/v1/messages`, {
     method: 'POST',
     headers: {
       'x-api-key': params.cfg.apiKey,
@@ -218,8 +230,8 @@ async function callAnthropicJson(params: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: params.cfg.model,
-      max_tokens: 4096,
+      model: resolveAnthropicModelId(params.cfg.model),
+      max_tokens: maxOut,
       temperature: 0.2,
       system: params.system,
       messages: [{ role: 'user', content: clippedUser }],
@@ -241,8 +253,10 @@ async function callAnthropicJson(params: {
       ? ((json as { content: Array<{ type?: unknown; text?: unknown }> }).content ?? [])
       : [];
 
-  const textBlock = blocks.find((b) => String(b.type) === 'text');
-  const content = String(textBlock?.text ?? '');
+  const textParts = blocks
+    .filter((b) => b && typeof b === 'object' && String((b as { type?: unknown }).type) === 'text')
+    .map((b) => String((b as { text?: unknown }).text ?? ''));
+  const content = textParts.join('\n').trim();
   if (!content.trim()) throw new Error('AI returned empty content.');
   return content;
 }
@@ -254,10 +268,15 @@ export async function callAiForJson(params: {
   maxInputChars?: number;
 }) {
   const maxInputChars = params.maxInputChars ?? Number(process.env.AI_MAX_INPUT_CHARS || 25000);
+  /** Anthropic tidak punya response_format json_object; tegaskan format agar parsing tidak gagal. */
+  const user =
+    params.cfg.kind === 'anthropic'
+      ? `${params.user}\n\n[Format keluaran: hanya satu objek JSON valid, tanpa markdown fence atau teks di luar JSON.]`
+      : params.user;
 
   const content =
     params.cfg.kind === 'anthropic'
-      ? await callAnthropicJson({ cfg: params.cfg, system: params.system, user: params.user, maxInputChars })
+      ? await callAnthropicJson({ cfg: params.cfg, system: params.system, user, maxInputChars })
       : await callOpenAiCompatibleJson({ cfg: params.cfg, system: params.system, user: params.user, maxInputChars });
 
   return parseModelJsonContent(content);

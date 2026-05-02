@@ -3,6 +3,7 @@ import { aiPromptSettings, aiProviderConfigs } from '../db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { DEFAULT_DOCUMENT_REVIEW_SYSTEM_PROMPT, DEFAULT_MINUTES_REVIEW_SYSTEM_PROMPT } from './defaultAiPrompts';
 import type { AiCallConfig } from './aiClient';
+import { resolveAnthropicModelId } from './anthropicModelId';
 import { decrypt } from './encryption';
 
 export async function loadDocumentReviewSystemPrompt(_userId: string) {
@@ -29,11 +30,12 @@ function toAiCallConfig(row: {
   baseUrl: string | null;
   model: string;
 }): AiCallConfig {
+  const kind = row.kind === 'anthropic' ? 'anthropic' : 'openai_compatible';
   return {
-    kind: row.kind === 'anthropic' ? 'anthropic' : 'openai_compatible',
+    kind,
     apiKey: decrypt(row.apiKey),
     baseUrl: row.baseUrl,
-    model: row.model,
+    model: kind === 'anthropic' ? resolveAnthropicModelId(row.model) : row.model,
   };
 }
 
