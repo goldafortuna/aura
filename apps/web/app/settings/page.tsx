@@ -1918,7 +1918,7 @@ export default function SettingsPage() {
                           type={showPwd ? 'text' : 'password'}
                           value={gmailAppPwd}
                           onChange={(e) => setGmailAppPwd(e.target.value)}
-                          placeholder={emailCfg ? 'Kosongkan jika tidak ingin ubah password' : smtpProvider === 'resend' ? 're_...' : 'Password SMTP'}
+                          placeholder={emailCfg?.smtpPassword || (smtpProvider === 'resend' ? 're_...' : 'Password SMTP')}
                           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-10 text-sm text-gray-800 outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
                         />
                         <button
@@ -1929,7 +1929,11 @@ export default function SettingsPage() {
                           {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      {emailCfg && <p className="mt-1 text-xs text-gray-400">Isi hanya jika ingin mengganti password SMTP atau API key. Kosongkan jika tidak berubah.</p>}
+                      {emailCfg && (
+                        <p className="mt-1 text-xs text-gray-400">
+                          API key tersimpan sebagai {emailCfg.smtpPassword}. Isi hanya jika ingin mengganti password SMTP atau API key.
+                        </p>
+                      )}
                     </label>
                   </div>
 
