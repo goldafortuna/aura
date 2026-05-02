@@ -1,15 +1,18 @@
-/**
- * sendEmailGmail
- * Mengirim email melalui Gmail SMTP menggunakan App Password.
- *
- * Prasyarat user:
- *   1. Aktifkan 2-Step Verification di akun Google
- *   2. Buka https://myaccount.google.com/apppasswords
- *   3. Buat App Password baru (pilih "Mail" / "Other")
- *   4. Simpan 16-digit App Password ke Pengaturan Aplikasi
- */
-
 import nodemailer from 'nodemailer';
+import type { EmailConfig } from '../db/schema';
+
+export type SmtpProvider = 'gmail' | 'resend' | 'custom';
+
+export type SmtpConfigInput = {
+  provider: SmtpProvider;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUsername: string;
+  smtpPassword: string;
+  fromAddress: string;
+  fromName: string;
+};
 
 export type CtaSummary = {
   title: string;
@@ -21,30 +24,92 @@ export type CtaSummary = {
 };
 
 export type NotulaEmailPayload = {
-  /** Konfigurasi pengirim */
-  from: {
-    name: string;
-    address: string;
-    appPassword: string;
-  };
-  /** Penerima — satu panggilan = satu penerima (atau array CC) */
+  from: SmtpConfigInput;
   to: string | string[];
   subject: string;
-  /** Metadata notula */
   notula: {
     title: string;
     meetingDate: string;
     participantsCount?: number;
   };
-  /** Pesan tambahan dari pengirim */
   additionalMessage?: string;
-  /** CTA khusus untuk penerima ini */
   ctas?: CtaSummary[];
-  /** URL download dokumen terkoreksi (opsional) */
   downloadUrl?: string;
 };
 
-// ─── HTML Template ────────────────────────────────────────────────────────────
+export function maskSecret(secret: string): string {
+  return secret ? `****${secret.slice(-4)}` : '';
+}
+
+export function resolveStoredSmtpConfig(
+  cfg: EmailConfig,
+  decryptValue: (value: string) => string,
+): SmtpConfigInput {
+  const decryptedLegacyPassword = decryptValue(cfg.gmailAppPassword);
+  const decryptedSmtpPassword = cfg.smtpPassword ? decryptValue(cfg.smtpPassword) : '';
+
+  return {
+    provider: normalizeProvider(cfg.provider),
+    smtpHost: cfg.smtpHost ?? inferLegacyHost(cfg.provider),
+    smtpPort: cfg.smtpPort ?? inferLegacyPort(cfg.provider),
+    smtpSecure: cfg.smtpHost ? cfg.smtpSecure : inferLegacySecure(cfg.provider),
+    smtpUsername: cfg.smtpUsername ?? cfg.gmailAddress,
+    smtpPassword: decryptedSmtpPassword || decryptedLegacyPassword,
+    fromAddress: cfg.fromAddress ?? cfg.gmailAddress,
+    fromName: cfg.fromName,
+  };
+}
+
+export async function verifySmtpConfig(config: SmtpConfigInput): Promise<void> {
+  const transporter = createSmtpTransport(config);
+  await transporter.verify();
+}
+
+export async function sendNotulaEmail(payload: NotulaEmailPayload): Promise<void> {
+  const transporter = createSmtpTransport(payload.from);
+  const html = buildHtmlBody(payload);
+  const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
+
+  await transporter.sendMail({
+    from: `"${payload.from.fromName}" <${payload.from.fromAddress}>`,
+    to: toAddresses.join(', '),
+    subject: payload.subject,
+    html,
+    text: `Notula Rapat: ${payload.notula.title}\nTanggal: ${payload.notula.meetingDate}\n\n${payload.additionalMessage ?? ''}`,
+  });
+}
+
+export function createSmtpTransport(config: SmtpConfigInput) {
+  return nodemailer.createTransport({
+    host: config.smtpHost,
+    port: config.smtpPort,
+    secure: config.smtpSecure,
+    auth: {
+      user: config.smtpUsername,
+      pass: config.smtpPassword,
+    },
+    tls: {
+      rejectUnauthorized: true,
+    },
+  });
+}
+
+function normalizeProvider(provider: string | null | undefined): SmtpProvider {
+  if (provider === 'resend' || provider === 'custom') return provider;
+  return 'gmail';
+}
+
+function inferLegacyHost(provider: string | null | undefined): string {
+  return normalizeProvider(provider) === 'resend' ? 'smtp.resend.com' : 'smtp.gmail.com';
+}
+
+function inferLegacyPort(provider: string | null | undefined): number {
+  return normalizeProvider(provider) === 'resend' ? 465 : 587;
+}
+
+function inferLegacySecure(provider: string | null | undefined): boolean {
+  return normalizeProvider(provider) === 'resend';
+}
 
 function escapeHtml(str: string): string {
   return str
@@ -78,9 +143,9 @@ function buildHtmlBody(payload: NotulaEmailPayload): string {
             <strong>${i + 1}. ${escapeHtml(cta.title)}</strong><br/>
             <span style="color:#6b7280;">${escapeHtml(cta.action)}</span>
           </td>
-          <td style="padding:12px 8px;font-size:12px;color:#374151;white-space:nowrap;">${escapeHtml(cta.unit ?? '—')}</td>
-          <td style="padding:12px 8px;font-size:12px;color:#374151;white-space:nowrap;">${escapeHtml(cta.picName ?? '—')}</td>
-          <td style="padding:12px 8px;font-size:12px;white-space:nowrap;">${escapeHtml(cta.deadline ?? '—')}</td>
+          <td style="padding:12px 8px;font-size:12px;color:#374151;white-space:nowrap;">${escapeHtml(cta.unit ?? '-')}</td>
+          <td style="padding:12px 8px;font-size:12px;color:#374151;white-space:nowrap;">${escapeHtml(cta.picName ?? '-')}</td>
+          <td style="padding:12px 8px;font-size:12px;white-space:nowrap;">${escapeHtml(cta.deadline ?? '-')}</td>
           <td style="padding:12px 8px;">${priorityBadge(cta.priority)}</td>
         </tr>`,
           )
@@ -94,19 +159,16 @@ function buildHtmlBody(payload: NotulaEmailPayload): string {
 <body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Arial,sans-serif;">
   <div style="max-width:680px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
 
-    <!-- Header -->
     <div style="background:linear-gradient(135deg,#7c3aed,#2563eb);padding:32px 40px;">
       <p style="margin:0 0 4px;color:rgba(255,255,255,0.75);font-size:13px;text-transform:uppercase;letter-spacing:1px;">Notulen Rapat</p>
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;line-height:1.3;">${escapeHtml(notula.title)}</h1>
       <p style="margin:12px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
-        📅 ${notula.meetingDate}
-        ${notula.participantsCount ? `&nbsp;·&nbsp; 👥 ${notula.participantsCount} peserta` : ''}
+        ${notula.meetingDate}
+        ${notula.participantsCount ? ` | ${notula.participantsCount} peserta` : ''}
       </p>
     </div>
 
-    <!-- Body -->
     <div style="padding:32px 40px;">
-
       ${
         additionalMessage
           ? `<div style="background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
@@ -115,9 +177,7 @@ function buildHtmlBody(payload: NotulaEmailPayload): string {
           : ''
       }
 
-      <h2 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#111827;">
-        📋 Tindak Lanjut (Call to Action)
-      </h2>
+      <h2 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#111827;">Tindak Lanjut (Call to Action)</h2>
       <p style="margin:0 0 16px;font-size:13px;color:#6b7280;">
         Berikut tindak lanjut yang perlu ditindaklanjuti oleh unit Anda berdasarkan hasil rapat:
       </p>
@@ -141,15 +201,13 @@ function buildHtmlBody(payload: NotulaEmailPayload): string {
         downloadUrl
           ? `<div style="margin-top:24px;text-align:center;">
               <a href="${downloadUrl}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:600;">
-                ⬇️ Unduh Dokumen Notula
+                Unduh Dokumen Notula
               </a>
             </div>`
           : ''
       }
-
     </div>
 
-    <!-- Footer -->
     <div style="padding:20px 40px;background:#f9fafb;border-top:1px solid #f3f4f6;">
       <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
         Email ini dikirim secara otomatis oleh Sistem Sekretariat. Harap tidak membalas email ini.<br/>
@@ -159,48 +217,4 @@ function buildHtmlBody(payload: NotulaEmailPayload): string {
   </div>
 </body>
 </html>`;
-}
-
-// ─── Send function ─────────────────────────────────────────────────────────────
-
-export async function sendNotulaEmail(payload: NotulaEmailPayload): Promise<void> {
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Use STARTTLS
-    auth: {
-      user: payload.from.address,
-      pass: payload.from.appPassword,
-    },
-    tls: {
-      // Ensure secure connection with proper certificate validation
-      rejectUnauthorized: true, // Enable certificate validation
-    },
-  });
-
-  const html = buildHtmlBody(payload);
-  const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
-
-  await transporter.sendMail({
-    from: `"${payload.from.name}" <${payload.from.address}>`,
-    to: toAddresses.join(', '),
-    subject: payload.subject,
-    html,
-    text: `Notula Rapat: ${payload.notula.title}\nTanggal: ${payload.notula.meetingDate}\n\n${payload.additionalMessage ?? ''}`,
-  });
-}
-
-/** Test koneksi SMTP tanpa mengirim email sungguhan */
-export async function verifyGmailConfig(gmailAddress: string, appPassword: string): Promise<void> {
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: { user: gmailAddress, pass: appPassword },
-    tls: {
-      // Ensure secure connection with proper certificate validation
-      rejectUnauthorized: true, // Enable certificate validation
-    },
-  });
-  await transporter.verify();
 }

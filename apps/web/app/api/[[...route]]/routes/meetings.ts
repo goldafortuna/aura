@@ -6,7 +6,7 @@ import { ctaItems, emailConfigs, meetingMinutes, unitKerja } from '../../../../d
 import { extractDocumentText } from '../../../../lib/extractDocumentText';
 import { reviewMeetingMinutesText } from '../../../../lib/aiMinutesReview';
 import { applyFindingsToDocument } from '../../../../lib/applyFindingsToDocument';
-import { sendNotulaEmail } from '../../../../lib/sendEmailGmail';
+import { resolveStoredSmtpConfig, sendNotulaEmail } from '../../../../lib/smtpEmail';
 import { decrypt } from '../../../../lib/encryption';
 import { downloadObject, uploadObject } from '../../../../lib/objectStorage';
 import { requireSecretary } from '../_lib/auth';
@@ -326,6 +326,7 @@ meetingsRouter.post('/:id/distribute', async (c) => {
   if (!minute) return c.json({ error: 'Meeting minute not found' }, 404);
 
   const [emailCfg] = await db.select().from(emailConfigs).where(eq(emailConfigs.userId, dbUser.id)).limit(1);
+  const smtpConfig = emailCfg ? resolveStoredSmtpConfig(emailCfg, decrypt) : null;
   const allCtas = await db.select().from(ctaItems).where(eq(ctaItems.meetingMinuteId, id));
   const unitKerjaRows = await db.select().from(unitKerja).where(isNull(unitKerja.userId));
 
@@ -333,7 +334,7 @@ meetingsRouter.post('/:id/distribute', async (c) => {
   const sentTo: string[] = [];
   const errors: string[] = [];
 
-  if (emailCfg) {
+  if (smtpConfig) {
     for (const recipient of recipients) {
       let recipientCtas = allCtas;
 
@@ -359,7 +360,7 @@ meetingsRouter.post('/:id/distribute', async (c) => {
 
       try {
         await sendNotulaEmail({
-          from: { name: emailCfg.fromName, address: emailCfg.gmailAddress, appPassword: decrypt(emailCfg.gmailAppPassword) },
+          from: smtpConfig,
           to: recipient.email,
           subject,
           notula: { title: minute.title, meetingDate: minute.meetingDate, participantsCount: minute.participantsCount },
@@ -392,7 +393,7 @@ meetingsRouter.post('/:id/distribute', async (c) => {
     updatedAt: new Date(),
   }).where(and(eq(meetingMinutes.id, id), eq(meetingMinutes.userId, dbUser.id))).returning();
 
-  return c.json({ data: updated, meta: { sent: sentTo.length, errors: errors.length > 0 ? errors : undefined, emailConfigured: !!emailCfg } });
+  return c.json({ data: updated, meta: { sent: sentTo.length, errors: errors.length > 0 ? errors : undefined, emailConfigured: !!smtpConfig } });
 });
 
 meetingsRouter.get('/:id/ctas', async (c) => {

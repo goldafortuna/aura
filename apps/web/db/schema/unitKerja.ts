@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 /**
@@ -39,6 +39,14 @@ export const emailConfigs = pgTable('email_configs', {
   gmailAddress: text('gmail_address').notNull(),
   /** Gmail App Password (bukan password akun utama) */
   gmailAppPassword: text('gmail_app_password').notNull(),
+  /** Provider preset untuk bantu autofill UI */
+  provider: text('provider').notNull().default('gmail'),
+  smtpHost: text('smtp_host'),
+  smtpPort: integer('smtp_port'),
+  smtpSecure: boolean('smtp_secure').notNull().default(false),
+  smtpUsername: text('smtp_username'),
+  smtpPassword: text('smtp_password'),
+  fromAddress: text('from_address'),
   /** Nama tampil pengirim, misal "Sekretariat Rapim" */
   fromName: text('from_name').notNull().default('Sekretariat'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

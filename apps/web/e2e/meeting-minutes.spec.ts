@@ -99,7 +99,7 @@ test.describe('Meeting Minutes E2E', () => {
     await expect(page.getByRole('heading', { name: 'Distribusi Notula' })).toBeVisible();
     await page.getByRole('button', { name: new RegExp(unitName) }).click();
     await page.getByRole('button', { name: /Kirim ke Semua Penerima/i }).click();
-    await expect(page.getByText('Konfigurasi email Gmail belum diatur.')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Konfigurasi email SMTP belum diatur.')).toBeVisible({ timeout: 15_000 });
 
     await page.goto('/app?tab=cta-dashboard');
     await expect(page.getByRole('heading', { name: 'Monitoring Tindak Lanjut' })).toBeVisible();

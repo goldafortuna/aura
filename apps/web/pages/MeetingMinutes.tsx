@@ -700,7 +700,7 @@ export const MeetingMinutes: React.FC = () => {
       const json = (await res.json()) as { data: MeetingMinute; meta: { sent: number; errors?: string[]; emailConfigured: boolean } };
       setMinutes((prev) => prev.map((m) => m.id === json.data.id ? json.data : m));
       if (!json.meta.emailConfigured) {
-        setDistributeResult({ sent: 0, errors: ['Konfigurasi email Gmail belum diatur. Buka Pengaturan → Email untuk mengaturnya.'] });
+        setDistributeResult({ sent: 0, errors: ['Konfigurasi email SMTP belum diatur. Buka Pengaturan -> Email untuk mengaturnya.'] });
       } else {
         setDistributeResult({ sent: json.meta.sent, errors: json.meta.errors });
         if (!json.meta.errors?.length) {

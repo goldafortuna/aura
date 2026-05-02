@@ -114,12 +114,27 @@ CREATE TABLE IF NOT EXISTS "email_configs" (
   "user_id" uuid NOT NULL UNIQUE,
   "gmail_address" text NOT NULL,
   "gmail_app_password" text NOT NULL,
+  "provider" text NOT NULL DEFAULT 'gmail',
+  "smtp_host" text,
+  "smtp_port" integer,
+  "smtp_secure" boolean NOT NULL DEFAULT false,
+  "smtp_username" text,
+  "smtp_password" text,
+  "from_address" text,
   "from_name" text NOT NULL DEFAULT 'Sekretariat',
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT "email_configs_user_id_users_id_fk"
     FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE
 );
+
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "provider" text NOT NULL DEFAULT 'gmail';
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "smtp_host" text;
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "smtp_port" integer;
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "smtp_secure" boolean NOT NULL DEFAULT false;
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "smtp_username" text;
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "smtp_password" text;
+ALTER TABLE "email_configs" ADD COLUMN IF NOT EXISTS "from_address" text;
 
 CREATE TABLE IF NOT EXISTS "wa_reminder_templates" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -162,7 +177,7 @@ async function main() {
     console.log('  + distributed_at (timestamp with time zone)');
     console.log('  + ai_model (text) — model AI yang digunakan analisis');
     console.log('  + unit_kerja table (jika belum ada)');
-    console.log('  + email_configs table (jika belum ada)');
+    console.log('  + email_configs table (SMTP generic + kolom legacy Gmail)');
     console.log('  + wa_reminder_templates table (jika belum ada)');
   } finally {
     await sql.end({ timeout: 3 });

@@ -7,7 +7,7 @@ import { requireSecretary } from '../../../lib/middleware/auth';
 import { extractDocumentText } from '../../../lib/extractDocumentText';
 import { reviewMeetingMinutesText } from '../../../lib/aiMinutesReview';
 import { applyFindingsToDocument } from '../../../lib/applyFindingsToDocument';
-import { sendNotulaEmail } from '../../../lib/sendEmailGmail';
+import { resolveStoredSmtpConfig, sendNotulaEmail } from '../../../lib/smtpEmail';
 import { downloadObject, uploadObject } from '../../../lib/objectStorage';
 import { loadAiCallConfigCandidates, loadMinutesReviewSystemPrompt } from '../../../lib/aiConfig';
 import { parseIsoDateOrNull } from '../../../lib/utils/date';
@@ -503,12 +503,14 @@ app.post('/:id/distribute', async (c) => {
 
   if (!minute) return c.json({ error: 'Meeting minute not found' }, 404);
 
-  // Load email config untuk kirim via Gmail
+  // Load email config untuk kirim via SMTP
   const [emailCfg] = await db
     .select()
     .from(emailConfigs)
     .where(eq(emailConfigs.userId, dbUser.id))
     .limit(1);
+
+  const smtpConfig = emailCfg ? resolveStoredSmtpConfig(emailCfg, decrypt) : null;
 
   // Load semua CTA notula
   const allCtas = await db
@@ -526,7 +528,7 @@ app.post('/:id/distribute', async (c) => {
   const sentTo: string[] = [];
   const errors: string[] = [];
 
-  if (emailCfg) {
+  if (smtpConfig) {
     for (const recipient of recipients) {
       try {
         // Filter CTA untuk penerima ini berdasarkan unit kerja
@@ -555,11 +557,7 @@ app.post('/:id/distribute', async (c) => {
         }
 
         await sendNotulaEmail({
-          from: {
-            name: emailCfg.fromName,
-            address: emailCfg.gmailAddress,
-            appPassword: decrypt(emailCfg.gmailAppPassword),
-          },
+          from: smtpConfig,
           to: recipient.email,
           subject,
           notula: {

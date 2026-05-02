@@ -96,11 +96,52 @@ type UnitKerjaRow = {
   description: string | null;
 };
 
+type SmtpProvider = 'gmail' | 'resend' | 'custom';
+
 type EmailConfigRow = {
-  gmailAddress: string;
-  gmailAppPassword: string;
+  provider: SmtpProvider;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUsername: string;
+  smtpPassword: string;
+  fromAddress: string;
   fromName: string;
 } | null;
+
+const SMTP_PROVIDER_PRESETS: Record<SmtpProvider, {
+  label: string;
+  description: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUsername: string;
+}> = {
+  gmail: {
+    label: 'Gmail SMTP',
+    description: 'Tetap didukung, tetapi membutuhkan App Password Google.',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUsername: '',
+  },
+  resend: {
+    label: 'Resend SMTP',
+    description: 'Paling cocok untuk aplikasi, dengan API key sebagai password SMTP.',
+    smtpHost: 'smtp.resend.com',
+    smtpPort: 465,
+    smtpSecure: true,
+    smtpUsername: 'resend',
+  },
+  custom: {
+    label: 'Custom SMTP',
+    description: 'Gunakan server SMTP lain seperti Zoho, Titan, Microsoft 365, atau hosting email.',
+    smtpHost: '',
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUsername: '',
+  },
+};
 
 type WebdavConfigRow = {
   baseUrl: string;
@@ -258,7 +299,12 @@ export default function SettingsPage() {
   // Email config state
   const [emailCfg, setEmailCfg] = useState<EmailConfigRow>(null);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [gmailAddress, setGmailAddress] = useState('');
+  const [smtpProvider, setSmtpProvider] = useState<SmtpProvider>('resend');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('465');
+  const [smtpSecure, setSmtpSecure] = useState(true);
+  const [smtpUsername, setSmtpUsername] = useState('resend');
+  const [fromAddress, setFromAddress] = useState('');
   const [gmailAppPwd, setGmailAppPwd] = useState('');
   const [fromName, setFromName] = useState('Sekretariat');
   const [showPwd, setShowPwd] = useState(false);
@@ -508,6 +554,15 @@ export default function SettingsPage() {
 
   // ── Email Config ─────────────────────────────────────────────────────────────
 
+  const applySmtpPreset = useCallback((provider: SmtpProvider, preserveUsername = false) => {
+    const preset = SMTP_PROVIDER_PRESETS[provider];
+    setSmtpProvider(provider);
+    setSmtpHost(preset.smtpHost);
+    setSmtpPort(String(preset.smtpPort));
+    setSmtpSecure(preset.smtpSecure);
+    setSmtpUsername((current) => (preserveUsername && current ? current : preset.smtpUsername));
+  }, []);
+
   const loadEmailConfig = useCallback(async () => {
     setEmailLoading(true);
     try {
@@ -516,35 +571,51 @@ export default function SettingsPage() {
       const json = (await res.json()) as { data: EmailConfigRow };
       setEmailCfg(json.data);
       if (json.data) {
-        setGmailAddress(json.data.gmailAddress);
+        setSmtpProvider(json.data.provider);
+        setSmtpHost(json.data.smtpHost);
+        setSmtpPort(String(json.data.smtpPort));
+        setSmtpSecure(Boolean(json.data.smtpSecure));
+        setSmtpUsername(json.data.smtpUsername);
+        setFromAddress(json.data.fromAddress);
         setFromName(json.data.fromName);
-        setGmailAppPwd(''); // tidak pre-fill password — hanya tampilkan sensor
+        setGmailAppPwd('');
+      } else {
+        applySmtpPreset('resend');
+        setFromAddress('');
+        setFromName('Sekretariat');
+        setGmailAppPwd('');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Terjadi kesalahan.');
     } finally {
       setEmailLoading(false);
     }
-  }, []);
+  }, [applySmtpPreset]);
 
   useEffect(() => {
     if (activeTab === 'email' && canUseSecretarySettings) void loadEmailConfig();
   }, [activeTab, canUseSecretarySettings, loadEmailConfig]);
 
   const saveEmailConfig = async () => {
-    if (!gmailAddress.trim()) { setError('Gmail address wajib diisi.'); return; }
-    if (!gmailAppPwd.trim() && !emailCfg) { setError('App Password wajib diisi.'); return; }
+    if (!smtpHost.trim()) { setError('SMTP host wajib diisi.'); return; }
+    if (!smtpPort.trim() || Number.isNaN(Number(smtpPort)) || Number(smtpPort) <= 0) { setError('SMTP port tidak valid.'); return; }
+    if (!smtpUsername.trim()) { setError('SMTP username wajib diisi.'); return; }
+    if (!fromAddress.trim()) { setError('From address wajib diisi.'); return; }
+    if (!gmailAppPwd.trim() && !emailCfg) { setError('SMTP password wajib diisi.'); return; }
     setEmailSaving(true);
     setError(null);
     setEmailVerifyResult(null);
     try {
-      const body: Record<string, string> = { gmailAddress: gmailAddress.trim(), fromName: fromName.trim() || 'Sekretariat' };
-      if (gmailAppPwd.trim()) body.gmailAppPassword = gmailAppPwd.trim();
-      // Jika edit dan tidak ada password baru, kirim password lama (tidak mungkin karena disensor)
-      // User HARUS input ulang password saat update
-      if (!body.gmailAppPassword) {
-        setError('Masukkan App Password Gmail untuk menyimpan.'); return;
-      }
+      const body: Record<string, string | number | boolean> = {
+        provider: smtpProvider,
+        smtpHost: smtpHost.trim(),
+        smtpPort: Number(smtpPort),
+        smtpSecure,
+        smtpUsername: smtpUsername.trim(),
+        fromAddress: fromAddress.trim(),
+        fromName: fromName.trim() || 'Sekretariat',
+      };
+      if (gmailAppPwd.trim()) body.smtpPassword = gmailAppPwd.trim();
       const res = await fetch('/api/email-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -562,8 +633,8 @@ export default function SettingsPage() {
   };
 
   const verifyEmailConfig = async () => {
-    if (!gmailAddress.trim() || !gmailAppPwd.trim()) {
-      setError('Isi Gmail address dan App Password untuk verifikasi.'); return;
+    if (!smtpHost.trim() || !smtpPort.trim() || !smtpUsername.trim() || !fromAddress.trim() || !gmailAppPwd.trim()) {
+      setError('Lengkapi SMTP host, port, username, from address, dan password untuk verifikasi.'); return;
     }
     setEmailVerifying(true);
     setEmailVerifyResult(null);
@@ -572,7 +643,16 @@ export default function SettingsPage() {
       const res = await fetch('/api/email-config/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gmailAddress: gmailAddress.trim(), gmailAppPassword: gmailAppPwd.trim(), fromName }),
+        body: JSON.stringify({
+          provider: smtpProvider,
+          smtpHost: smtpHost.trim(),
+          smtpPort: Number(smtpPort),
+          smtpSecure,
+          smtpUsername: smtpUsername.trim(),
+          smtpPassword: gmailAppPwd.trim(),
+          fromAddress: fromAddress.trim(),
+          fromName,
+        }),
       });
       if (!res.ok) {
         const msg = await readApiErrorMessage(res, 'Verifikasi gagal');
@@ -1747,8 +1827,8 @@ export default function SettingsPage() {
           >
             <SectionCard
               icon={<Mail className="h-5 w-5" />}
-              title="Konfigurasi Email Gmail"
-              description="Atur akun Gmail sekretaris untuk mengirim notula ke unit kerja. Gunakan Gmail App Password, bukan password akun utama."
+              title="Konfigurasi Email SMTP"
+              description="Atur provider email pengirim untuk notula, reminder, dan pengiriman dokumen. Resend disediakan sebagai preset, tetapi SMTP lain juga didukung."
             >
               {emailLoading ? (
                 <div className="space-y-3">
@@ -1761,43 +1841,84 @@ export default function SettingsPage() {
                       <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
                       <div>
                         <p className="text-sm font-semibold text-green-800">Email terkonfigurasi</p>
-                        <p className="text-xs text-green-600">{emailCfg.gmailAddress} · {emailCfg.fromName}</p>
+                        <p className="text-xs text-green-600">{emailCfg.provider.toUpperCase()} / {emailCfg.fromAddress} / {emailCfg.fromName}</p>
                       </div>
                     </div>
                   )}
 
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-xs font-semibold text-amber-800 mb-1">Cara mendapatkan Gmail App Password:</p>
-                    <ol className="text-xs text-amber-700 space-y-0.5 list-decimal list-inside">
-                      <li>Aktifkan 2-Step Verification di akun Google sekretaris</li>
-                      <li>Buka <strong>myaccount.google.com/apppasswords</strong></li>
-                      <li>Pilih &quot;Mail&quot; lalu klik &quot;Generate&quot;</li>
-                      <li>Salin 16-digit kode yang muncul ke field App Password di bawah</li>
-                    </ol>
+                    <p className="mb-1 text-xs font-semibold text-amber-800">Preset yang disarankan: Resend</p>
+                    <p className="text-xs text-amber-700">
+                      Gunakan `smtp.resend.com`, username `resend`, dan API key Resend sebagai password SMTP.
+                      Jika kelak pindah ke provider lain, cukup ganti host, port, username, dan password tanpa ubah kode.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <FormInput
-                      label="Gmail Address Sekretaris *"
-                      value={gmailAddress}
-                      onChange={setGmailAddress}
-                      placeholder="sekretaris@gmail.com"
-                      type="email"
-                    />
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">Provider SMTP</span>
+                      <select
+                        value={smtpProvider}
+                        onChange={(e) => applySmtpPreset(e.target.value as SmtpProvider)}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition-shadow focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
+                      >
+                        {Object.entries(SMTP_PROVIDER_PRESETS).map(([key, preset]) => (
+                          <option key={key} value={key}>{preset.label}</option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-400">{SMTP_PROVIDER_PRESETS[smtpProvider].description}</p>
+                    </label>
                     <FormInput
                       label="Nama Pengirim"
                       value={fromName}
                       onChange={setFromName}
                       placeholder="Sekretariat Rapim"
                     />
+                    <FormInput
+                      label="SMTP Host *"
+                      value={smtpHost}
+                      onChange={setSmtpHost}
+                      placeholder="smtp.resend.com"
+                    />
+                    <FormInput
+                      label="SMTP Port *"
+                      value={smtpPort}
+                      onChange={setSmtpPort}
+                      placeholder="465"
+                    />
+                    <FormInput
+                      label="SMTP Username *"
+                      value={smtpUsername}
+                      onChange={setSmtpUsername}
+                      placeholder={smtpProvider === 'resend' ? 'resend' : 'username SMTP'}
+                    />
+                    <FormInput
+                      label="From Address *"
+                      value={fromAddress}
+                      onChange={setFromAddress}
+                      placeholder={smtpProvider === 'gmail' ? 'sekretaris@gmail.com' : 'notifikasi@domainanda.com'}
+                      type="email"
+                    />
+                    <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 md:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={smtpSecure}
+                        onChange={(e) => setSmtpSecure(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Gunakan koneksi secure</p>
+                        <p className="text-xs text-gray-500">Untuk Resend umumnya aktif di port 465. Untuk Gmail biasanya non-secure di port 587 lalu upgrade via STARTTLS.</p>
+                      </div>
+                    </label>
                     <label className="block md:col-span-2">
-                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">Gmail App Password *</span>
+                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">SMTP Password / API Key *</span>
                       <div className="relative">
                         <input
                           type={showPwd ? 'text' : 'password'}
                           value={gmailAppPwd}
                           onChange={(e) => setGmailAppPwd(e.target.value)}
-                          placeholder={emailCfg ? 'Kosongkan jika tidak ingin ubah password' : 'xxxx xxxx xxxx xxxx'}
+                          placeholder={emailCfg ? 'Kosongkan jika tidak ingin ubah password' : smtpProvider === 'resend' ? 're_...' : 'Password SMTP'}
                           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-10 text-sm text-gray-800 outline-none transition-shadow placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
                         />
                         <button
@@ -1808,7 +1929,7 @@ export default function SettingsPage() {
                           {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      {emailCfg && <p className="mt-1 text-xs text-gray-400">Isi hanya jika ingin mengganti App Password. Kosongkan jika tidak berubah.</p>}
+                      {emailCfg && <p className="mt-1 text-xs text-gray-400">Isi hanya jika ingin mengganti password SMTP atau API key. Kosongkan jika tidak berubah.</p>}
                     </label>
                   </div>
 
@@ -1823,7 +1944,7 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => void verifyEmailConfig()}
-                      disabled={emailVerifying || !gmailAddress || !gmailAppPwd}
+                      disabled={emailVerifying || !smtpHost || !smtpPort || !smtpUsername || !fromAddress || !gmailAppPwd}
                       className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
                       {emailVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

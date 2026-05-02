@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import nodemailer from 'nodemailer';
 import { z } from 'zod';
 import { db } from '../../../db';
 import { emailConfigs, taskAttachments, taskChecklistItems, tasks } from '../../../db/schema';
@@ -10,6 +9,7 @@ import { extractVisualDocumentTextWithAi } from '../../../lib/extractVisualDocum
 import { internalServerError } from '../../../lib/httpErrors';
 import { requireSecretary } from '../../../lib/middleware/auth';
 import { removeObjects, uploadObject } from '../../../lib/objectStorage';
+import { createSmtpTransport, resolveStoredSmtpConfig } from '../../../lib/smtpEmail';
 import { validateUploadedFile } from '../../../lib/utils/fileValidation';
 
 const app = new Hono();
@@ -961,8 +961,10 @@ app.post('/:id/send-to-finance', async (c) => {
     .limit(1);
 
   if (!emailCfg) {
-    return c.json({ error: 'Konfigurasi email Gmail belum diatur. Buka Pengaturan → Email.' }, 400);
+    return c.json({ error: 'Konfigurasi email SMTP belum diatur. Buka Pengaturan -> Email.' }, 400);
   }
+
+  const smtpConfig = resolveStoredSmtpConfig(emailCfg, decrypt);
 
   const attachmentsForEmail = await Promise.all(
     serialized.checklistItems.flatMap((item) =>
@@ -977,22 +979,11 @@ app.post('/:id/send-to-finance', async (c) => {
     ),
   );
 
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: emailCfg.gmailAddress,
-      pass: decrypt(emailCfg.gmailAppPassword),
-    },
-    tls: {
-      rejectUnauthorized: true,
-    },
-  });
+  const transporter = createSmtpTransport(smtpConfig);
 
   try {
     await transporter.sendMail({
-      from: `"${emailCfg.fromName}" <${emailCfg.gmailAddress}>`,
+      from: `"${smtpConfig.fromName}" <${smtpConfig.fromAddress}>`,
       to: serialized.financePicEmail,
       subject: `Dokumen pertanggungjawaban siap diproses - ${serialized.title}`,
       html: buildFinanceEmailHtml({
