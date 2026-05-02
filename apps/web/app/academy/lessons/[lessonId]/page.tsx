@@ -18,6 +18,12 @@ type LessonDetail = {
       eyebrow?: string;
       caption?: string;
     };
+    intro?: {
+      eyebrow?: string;
+      heading?: string;
+      body?: string;
+      points?: string[];
+    };
     slideRange?: { start?: number; end?: number };
     sections?: { heading?: string; body?: string; points?: string[] }[];
   } | null;
@@ -25,6 +31,7 @@ type LessonDetail = {
   course: { id: string; title: string; slug: string };
   previousLesson: { id: string; title: string } | null;
   nextLesson: { id: string; title: string } | null;
+  hasQuiz: boolean;
   isCompleted: boolean;
 };
 
@@ -105,7 +112,12 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
     if (!lesson) return;
     const completed = await markComplete();
     if (completed) {
-      router.push(`/academy/courses/${lesson.course.id}/modules/${lesson.module.id}/quiz`);
+      if (lesson.hasQuiz) {
+        router.push(`/academy/courses/${lesson.course.id}/modules/${lesson.module.id}/quiz`);
+        return;
+      }
+
+      router.push(`/academy/courses/${lesson.course.id}`);
     }
   };
 
@@ -129,6 +141,7 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
   const textSections = Array.isArray(lesson.contentData?.sections) ? lesson.contentData.sections : [];
   const isTextLesson = lesson.contentType === 'text';
   const hero = lesson.contentData?.hero;
+  const lessonIntro = lesson.contentData?.intro;
   const nextLessonId = lesson.nextLesson?.id ?? null;
 
   return (
@@ -219,20 +232,52 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
           </div>
         </section>
       ) : (
-        <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-          <iframe
-            src={pdfSrc}
-            title={lesson.title}
-            className="h-[75vh] w-full"
-          />
-        </section>
+        <div className="space-y-6">
+          {lessonIntro && (lessonIntro.body || (Array.isArray(lessonIntro.points) && lessonIntro.points.length > 0)) ? (
+            <section className="rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-6 shadow-sm">
+              <div className="max-w-4xl space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-700">
+                    {lessonIntro.eyebrow ?? 'Pengantar lesson'}
+                  </p>
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    {lessonIntro.heading ?? `Sebelum masuk ke ${lesson.title}`}
+                  </h2>
+                </div>
+                {lessonIntro.body ? <p className="text-base leading-8 text-gray-700">{lessonIntro.body}</p> : null}
+                {Array.isArray(lessonIntro.points) && lessonIntro.points.length > 0 ? (
+                  <ul className="space-y-3">
+                    {lessonIntro.points.map((point, pointIndex) => (
+                      <li key={`lesson-intro-${pointIndex}`} className="flex items-start gap-3 text-base leading-7 text-gray-700">
+                        <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+            <iframe
+              src={pdfSrc}
+              title={lesson.title}
+              className="h-[75vh] w-full"
+            />
+          </section>
+        </div>
       )}
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Modul Saat Ini</p>
-          <h2 className="mt-2 text-lg font-semibold text-gray-900">{lesson.module.title}</h2>
-          <p className="mt-2 text-sm text-gray-600">Lanjutkan membaca seluruh lesson pada modul ini sebelum membuka quiz akhir modul.</p>
+          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Modul Saat Ini</p>
+            <h2 className="mt-2 text-lg font-semibold text-gray-900">{lesson.module.title}</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {lesson.hasQuiz
+                ? 'Lanjutkan membaca seluruh lesson pada modul ini sebelum membuka quiz akhir modul.'
+                : 'Selesaikan seluruh lesson pada modul ini untuk menuntaskan pembelajaran tanpa quiz akhir.'}
+            </p>
         </div>
 
         <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -268,7 +313,7 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
                 disabled={saving}
                 className="inline-flex items-center gap-2 text-sm font-semibold text-sky-700 hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Lanjut ke quiz modul
+                {lesson.hasQuiz ? 'Lanjut ke quiz modul' : 'Selesaikan dan kembali ke modul'}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>

@@ -163,6 +163,9 @@ const AUTO_DETECT_VIA_CONFIG: Record<AutoDetectMatch['via'], { label: string; ba
   },
 };
 
+const KANBAN_PAGE_SIZE_OPTIONS = [8, 12, 20] as const;
+const DEFAULT_KANBAN_PAGE_SIZE = KANBAN_PAGE_SIZE_OPTIONS[1];
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '';
   try {
@@ -398,11 +401,17 @@ function TaskCard({ task, onEdit, onManageDocuments, onDelete, onStatusChange, d
 type KanbanColumnProps = {
   col: (typeof STATUS_COLUMNS)[number];
   tasks: ApiTask[];
+  totalTasks: number;
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
   onEdit: (task: ApiTask) => void;
   onManageDocuments: (task: ApiTask) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAdd: (status: TaskStatus) => void;
+  onPageChange: (status: TaskStatus, page: number) => void;
+  onPageSizeChange: (status: TaskStatus, size: number) => void;
   draggingId: string | null;
   setDraggingId: (id: string | null) => void;
   dropTarget: TaskStatus | null;
@@ -412,17 +421,25 @@ type KanbanColumnProps = {
 function KanbanColumn({
   col,
   tasks,
+  totalTasks,
+  currentPage,
+  totalPages,
+  pageSize,
   onEdit,
   onManageDocuments,
   onDelete,
   onStatusChange,
   onAdd,
+  onPageChange,
+  onPageSizeChange,
   draggingId,
   setDraggingId,
   dropTarget,
   setDropTarget,
 }: KanbanColumnProps) {
   const isTarget = dropTarget === col.id;
+  const showingFrom = totalTasks === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const showingTo = totalTasks === 0 ? 0 : Math.min(currentPage * pageSize, totalTasks);
 
   return (
     <div
@@ -446,7 +463,7 @@ function KanbanColumn({
         <div className="flex items-center gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} />
           <span className="text-sm font-semibold text-gray-800">{col.label}</span>
-          <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-gray-500 shadow-sm">{tasks.length}</span>
+          <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-gray-500 shadow-sm">{totalTasks}</span>
         </div>
         <button
           type="button"
@@ -456,6 +473,27 @@ function KanbanColumn({
         >
           <Plus className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 px-4 pb-3 text-xs text-gray-500">
+        <p>
+          Menampilkan {showingFrom}-{showingTo} dari {totalTasks}
+        </p>
+        <label className="flex items-center gap-2">
+          <span>Per halaman</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(col.id, Number(e.target.value))}
+            className="rounded-lg border border-white/80 bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 outline-none transition-shadow focus:border-primary-400 focus:ring-2 focus:ring-primary/20"
+            aria-label={`Jumlah card per halaman untuk ${col.label}`}
+          >
+            {KANBAN_PAGE_SIZE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="flex flex-col gap-3 px-3 pb-4">
@@ -475,6 +513,34 @@ function KanbanColumn({
         {tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white/40 px-4 py-8 text-center">
             <span className="text-xs text-gray-400">{draggingId ? 'Lepaskan di sini' : col.emptyHint}</span>
+          </div>
+        ) : null}
+
+        {totalPages > 1 ? (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/70 px-3 py-2.5">
+            <p className="text-xs font-medium text-gray-500">
+              Halaman {currentPage} dari {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange(col.id, currentPage - 1)}
+                disabled={currentPage === 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => onPageChange(col.id, currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -1294,11 +1360,29 @@ function DeleteModal({
 }
 
 export const TaskManagement: React.FC = () => {
+  const initialColumnPage = useMemo(
+    () =>
+      STATUS_COLUMNS.reduce(
+        (acc, column) => ({ ...acc, [column.id]: 1 }),
+        {} as Record<TaskStatus, number>,
+      ),
+    [],
+  );
+  const initialColumnPageSize = useMemo(
+    () =>
+      STATUS_COLUMNS.reduce(
+        (acc, column) => ({ ...acc, [column.id]: DEFAULT_KANBAN_PAGE_SIZE }),
+        {} as Record<TaskStatus, number>,
+      ),
+    [],
+  );
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [columnPage, setColumnPage] = useState<Record<TaskStatus, number>>(initialColumnPage);
+  const [columnPageSize, setColumnPageSize] = useState<Record<TaskStatus, number>>(initialColumnPageSize);
 
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [showModal, setShowModal] = useState(false);
@@ -1358,13 +1442,72 @@ export const TaskManagement: React.FC = () => {
     return { total, inProgress, completed, high, travelTasks, pct };
   }, [tasks]);
 
-  const filteredByColumn = (status: TaskStatus) =>
-    tasks.filter((task) => {
-      if (task.status !== status) return false;
-      if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
-      return true;
+  const filteredTasksByColumn = useMemo(
+    () =>
+      STATUS_COLUMNS.reduce(
+        (acc, column) => {
+          acc[column.id] = tasks.filter((task) => {
+            if (task.status !== column.id) return false;
+            if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+            if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
+            return true;
+          });
+          return acc;
+        },
+        {} as Record<TaskStatus, ApiTask[]>,
+      ),
+    [tasks, searchQuery, priorityFilter],
+  );
+
+  useEffect(() => {
+    setColumnPage(initialColumnPage);
+  }, [searchQuery, priorityFilter, initialColumnPage]);
+
+  useEffect(() => {
+    setColumnPage((current) => {
+      let hasChange = false;
+      const next = { ...current };
+
+      STATUS_COLUMNS.forEach((column) => {
+        const totalItems = filteredTasksByColumn[column.id].length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / columnPageSize[column.id]));
+        const safePage = Math.min(current[column.id] ?? 1, totalPages);
+        if (safePage !== current[column.id]) {
+          next[column.id] = safePage;
+          hasChange = true;
+        }
+      });
+
+      return hasChange ? next : current;
     });
+  }, [filteredTasksByColumn, columnPageSize]);
+
+  const pagedTasksByColumn = useMemo(
+    () =>
+      STATUS_COLUMNS.reduce(
+        (acc, column) => {
+          const currentPage = columnPage[column.id] ?? 1;
+          const size = columnPageSize[column.id] ?? DEFAULT_KANBAN_PAGE_SIZE;
+          const start = (currentPage - 1) * size;
+          acc[column.id] = filteredTasksByColumn[column.id].slice(start, start + size);
+          return acc;
+        },
+        {} as Record<TaskStatus, ApiTask[]>,
+      ),
+    [filteredTasksByColumn, columnPage, columnPageSize],
+  );
+
+  const handleColumnPageChange = (status: TaskStatus, page: number) => {
+    const totalItems = filteredTasksByColumn[status].length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / columnPageSize[status]));
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+    setColumnPage((current) => ({ ...current, [status]: nextPage }));
+  };
+
+  const handleColumnPageSizeChange = (status: TaskStatus, size: number) => {
+    setColumnPageSize((current) => ({ ...current, [status]: size }));
+    setColumnPage((current) => ({ ...current, [status]: 1 }));
+  };
 
   const syncFormWithTask = (task: ApiTask) => {
     setForm({
@@ -1851,12 +1994,18 @@ export const TaskManagement: React.FC = () => {
             <KanbanColumn
               key={column.id}
               col={column}
-              tasks={filteredByColumn(column.id)}
+              tasks={pagedTasksByColumn[column.id]}
+              totalTasks={filteredTasksByColumn[column.id].length}
+              currentPage={columnPage[column.id]}
+              totalPages={Math.max(1, Math.ceil(filteredTasksByColumn[column.id].length / columnPageSize[column.id]))}
+              pageSize={columnPageSize[column.id]}
               onEdit={openEditModal}
               onManageDocuments={openDocumentModal}
               onDelete={(id) => setDeletingId(id)}
               onStatusChange={patchStatus}
               onAdd={openCreateModal}
+              onPageChange={handleColumnPageChange}
+              onPageSizeChange={handleColumnPageSizeChange}
               draggingId={draggingId}
               setDraggingId={setDraggingId}
               dropTarget={dropTarget}

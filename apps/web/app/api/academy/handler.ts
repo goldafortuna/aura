@@ -727,7 +727,7 @@ app.get('/lessons/:lessonId', async (c) => {
     .limit(1);
   if (!course) return c.json({ error: 'Course not found' }, 404);
 
-  const [moduleLessons, completion] = await Promise.all([
+  const [moduleLessons, completion, moduleQuizQuestions] = await Promise.all([
     db
       .select()
       .from(academyLessons)
@@ -738,6 +738,10 @@ app.get('/lessons/:lessonId', async (c) => {
       .from(userLessonCompletions)
       .where(and(eq(userLessonCompletions.userId, dbUser.id), eq(userLessonCompletions.lessonId, lessonId)))
       .limit(1),
+    db
+      .select({ id: academyQuizQuestions.id })
+      .from(academyQuizQuestions)
+      .where(eq(academyQuizQuestions.moduleId, module.id)),
   ]);
 
   const currentIndex = moduleLessons.findIndex((item) => item.id === lessonId);
@@ -759,6 +763,7 @@ app.get('/lessons/:lessonId', async (c) => {
       },
       previousLesson: previousLesson ? { id: previousLesson.id, title: previousLesson.title } : null,
       nextLesson: nextLesson ? { id: nextLesson.id, title: nextLesson.title } : null,
+      hasQuiz: moduleQuizQuestions.length > 0,
       isCompleted: Boolean(completion),
     },
   });

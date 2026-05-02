@@ -3,8 +3,9 @@ import { handle } from 'hono/vercel';
 
 import promptsRoute from './handler';
 
-const app = new Hono().basePath('/api');
+// Mount at full path so promptsRoute receives "/" regardless of basePath behaviour.
+const app = new Hono();
 
-app.route('/ai/prompts', promptsRoute);
+app.route('/api/ai/prompts', promptsRoute);
 
 export const aiPromptsHandler = handle(app);

@@ -9,9 +9,13 @@ config({ path: '.env.local', override: true });
 
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const academySourceRoot = path.join(workspaceRoot, 'MateriAcademy');
-const configPath = path.join(__dirname, 'academy-master-course.config.json');
+const defaultConfigPath = path.join(__dirname, 'academy-master-course.config.json');
 
 function readConfig() {
+  const configArg = process.argv.find((value) => value.startsWith('--config='));
+  const configPath = configArg
+    ? path.resolve(process.cwd(), configArg.split('=')[1])
+    : defaultConfigPath;
   return JSON.parse(fs.readFileSync(configPath, 'utf8'));
 }
 

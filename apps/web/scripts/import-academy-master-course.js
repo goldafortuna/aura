@@ -9,10 +9,14 @@ config({ path: '.env.local', override: true });
 
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const academySourceRoot = path.join(workspaceRoot, 'MateriAcademy');
-const configPath = path.join(__dirname, 'academy-master-course.config.json');
+const defaultConfigPath = path.join(__dirname, 'academy-master-course.config.json');
 const r2PublicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/$/, '');
 
 function readConfig() {
+  const configArg = process.argv.find((value) => value.startsWith('--config='));
+  const configPath = configArg
+    ? path.resolve(process.cwd(), configArg.split('=')[1])
+    : defaultConfigPath;
   return JSON.parse(fs.readFileSync(configPath, 'utf8'));
 }
 
@@ -272,6 +276,7 @@ async function upsertLesson(sql, courseSlug, moduleId, assetBasePath, moduleConf
       sourceDeck: moduleConfig.sourcePptx,
       sourcePdf: moduleConfig.sourcePdf ?? null,
       slideRange: lessonConfig.slideRange,
+      intro: lessonConfig.intro ?? null,
     };
 
   const [existing] = await sql`
@@ -376,15 +381,20 @@ async function main() {
         await upsertLesson(sql, configData.course.slug, moduleId, configData.assetBasePath, moduleConfig, lessonConfig);
       }
 
-      const quizPath = path.join(academySourceRoot, moduleConfig.quizMarkdown);
-      const quizContent = fs.readFileSync(quizPath, 'utf8');
-      const quizQuestions = parseQuizMarkdown(quizContent);
-      if (quizQuestions.length === 0) {
-        throw new Error(`Quiz parser gagal membaca soal dari ${moduleConfig.quizMarkdown}`);
-      }
+      if (moduleConfig.quizMarkdown) {
+        const quizPath = path.join(academySourceRoot, moduleConfig.quizMarkdown);
+        const quizContent = fs.readFileSync(quizPath, 'utf8');
+        const quizQuestions = parseQuizMarkdown(quizContent);
+        if (quizQuestions.length === 0) {
+          throw new Error(`Quiz parser gagal membaca soal dari ${moduleConfig.quizMarkdown}`);
+        }
 
-      await replaceQuizQuestions(sql, moduleId, quizQuestions);
-      console.log(`Quiz ready: ${quizQuestions.length} soal`);
+        await replaceQuizQuestions(sql, moduleId, quizQuestions);
+        console.log(`Quiz ready: ${quizQuestions.length} soal`);
+      } else {
+        await replaceQuizQuestions(sql, moduleId, []);
+        console.log('Quiz skipped: module tanpa quiz.');
+      }
     }
 
     console.log('Master Academy course import complete.');

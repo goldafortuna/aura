@@ -27,6 +27,8 @@ export const meetingMinutes = pgTable('meeting_minutes', {
   /** Filename of corrected document */
   correctedFilename: text('corrected_filename'),
   ctasJson: jsonb('ctas_json').$type<unknown>(),
+  /** Model AI yang digunakan untuk analisis, misal "claude-sonnet-4-5" */
+  aiModel: text('ai_model'),
   analysisError: text('analysis_error'),
   analyzedAt: timestamp('analyzed_at', { withTimezone: true }),
   correctedAt: timestamp('corrected_at', { withTimezone: true }),

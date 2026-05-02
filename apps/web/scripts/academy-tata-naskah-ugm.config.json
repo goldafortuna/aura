@@ -1,0 +1,129 @@
+{
+  "course": {
+    "slug": "menguasai-tata-naskah-dinas-universitas-gadjah-mada",
+    "title": "Menguasai Tata Naskah Dinas Universitas Gadjah Mada",
+    "description": "Course praktis untuk memahami kerangka, jenis naskah, format, penomoran, serta pengendalian tata naskah dinas berdasarkan pedoman Universitas Gadjah Mada.",
+    "category": "specialized",
+    "difficulty": "beginner",
+    "status": "published",
+    "isPublic": true,
+    "totalDuration": 36
+  },
+  "assetBasePath": "academy-assets/menguasai-tata-naskah-dinas-ugm",
+  "modules": [
+    {
+      "order": 1,
+      "slug": "tata-naskah-dinas-ugm",
+      "title": "Tata Naskah Dinas Universitas Gadjah Mada",
+      "description": "Memahami tata naskah dinas UGM mulai dari kerangka dasar, klasifikasi naskah, format penulisan, penomoran, hingga pengendalian dan pengamanan dokumen.",
+      "quizMarkdown": "Quiz_Modul6_Tata_Naskah_Dinas.md",
+      "colorGradient": "from-blue-600 to-sky-500",
+      "bgColor": "bg-blue-50",
+      "iconColor": "text-blue-700",
+      "lessons": [
+        {
+          "order": 1,
+          "slug": "kerangka-tata-naskah-dinas",
+          "title": "Kerangka Tata Naskah Dinas",
+          "description": "Memahami landasan umum, prinsip kerja, dan struktur dasar tata naskah dinas di lingkungan Universitas Gadjah Mada.",
+          "duration": 6,
+          "intro": {
+            "eyebrow": "Fondasi utama",
+            "heading": "Mengenal kerangka tata naskah dinas UGM",
+            "body": "Lesson ini memberi pijakan awal tentang apa itu tata naskah dinas, mengapa pengaturannya penting, dan bagaimana kerangka umum ini menjadi dasar bagi seluruh proses administrasi resmi di universitas.",
+            "points": [
+              "Melihat ruang lingkup tata naskah dinas dalam konteks administrasi UGM.",
+              "Memahami fungsi pedoman sebagai acuan keseragaman dokumen resmi.",
+              "Menyiapkan pemahaman dasar sebelum masuk ke jenis naskah yang lebih spesifik."
+            ]
+          }
+        },
+        {
+          "order": 2,
+          "slug": "naskah-dinas-arahan",
+          "title": "Naskah Dinas Arahan",
+          "description": "Mempelajari bentuk-bentuk naskah dinas yang bersifat pengarahan, penetapan, dan instruksi resmi.",
+          "duration": 6,
+          "intro": {
+            "eyebrow": "Jenis naskah",
+            "heading": "Memahami naskah dinas yang bersifat arahan",
+            "body": "Di lesson ini kamu akan melihat bagaimana naskah dinas arahan dipakai untuk menetapkan kebijakan, memberi instruksi, atau menegaskan keputusan secara formal di lingkungan UGM.",
+            "points": [
+              "Mengenali karakter naskah yang berfungsi memberi arah dan keputusan.",
+              "Membedakan penggunaan tiap jenis naskah arahan sesuai kebutuhan organisasi.",
+              "Memahami konsekuensi ketepatan bentuk dokumen terhadap kejelasan perintah."
+            ]
+          }
+        },
+        {
+          "order": 3,
+          "slug": "naskah-dinas-korespondensi",
+          "title": "Naskah Dinas Korespondensi",
+          "description": "Memahami naskah dinas yang digunakan untuk komunikasi resmi, penyampaian informasi, dan korespondensi kelembagaan.",
+          "duration": 6,
+          "intro": {
+            "eyebrow": "Komunikasi resmi",
+            "heading": "Menata korespondensi kedinasan dengan benar",
+            "body": "Lesson ini fokus pada naskah dinas yang dipakai untuk berkomunikasi secara resmi. Tujuannya agar penyampaian informasi tertulis tetap jelas, sah, dan sesuai tata kelola kelembagaan.",
+            "points": [
+              "Mengenali bentuk naskah korespondensi untuk komunikasi internal maupun eksternal.",
+              "Memahami pentingnya ketelitian bahasa dan format dalam surat resmi.",
+              "Membantu memilih bentuk korespondensi yang paling tepat untuk setiap kebutuhan."
+            ]
+          }
+        },
+        {
+          "order": 4,
+          "slug": "naskah-dinas-khusus",
+          "title": "Naskah Dinas Khusus",
+          "description": "Mempelajari jenis naskah dinas tertentu yang memiliki fungsi, konteks penggunaan, atau perlakuan administratif khusus.",
+          "duration": 6,
+          "intro": {
+            "eyebrow": "Kasus khusus",
+            "heading": "Mengenali naskah dinas dengan perlakuan khusus",
+            "body": "Tidak semua naskah dinas diperlakukan sama. Lesson ini membantu kamu memahami dokumen-dokumen yang punya kebutuhan khusus dari sisi fungsi, isi, maupun tata kelolanya.",
+            "points": [
+              "Menandai jenis naskah yang tidak cukup ditangani dengan pola umum.",
+              "Memahami konteks administratif yang menuntut ketelitian tambahan.",
+              "Membantu mengurangi risiko salah bentuk atau salah perlakuan pada dokumen khusus."
+            ]
+          }
+        },
+        {
+          "order": 5,
+          "slug": "format-dan-penomoran",
+          "title": "Format dan Penomoran",
+          "description": "Memahami standar format, unsur-unsur penulisan, dan sistem penomoran naskah dinas agar konsisten dan mudah ditelusuri.",
+          "duration": 6,
+          "intro": {
+            "eyebrow": "Standar teknis",
+            "heading": "Menjaga konsistensi format dan penomoran",
+            "body": "Lesson ini membahas sisi teknis yang sangat menentukan kerapian tata naskah dinas: bagaimana format disusun dan bagaimana penomoran dibuat agar dokumen mudah dikenali, dikelola, dan dilacak.",
+            "points": [
+              "Memahami unsur format yang harus konsisten dalam dokumen resmi.",
+              "Mengenali logika penomoran untuk pengarsipan dan penelusuran dokumen.",
+              "Mengurangi kesalahan administratif yang sering muncul pada tahap finalisasi dokumen."
+            ]
+          }
+        },
+        {
+          "order": 6,
+          "slug": "pengendalian-dan-pengamanan",
+          "title": "Pengendalian dan Pengamanan",
+          "description": "Mempelajari prinsip pengendalian, distribusi, penyimpanan, dan pengamanan naskah dinas sesuai tingkat kepentingannya.",
+          "duration": 6,
+          "intro": {
+            "eyebrow": "Tata kelola aman",
+            "heading": "Mengendalikan dan mengamankan naskah dinas",
+            "body": "Lesson penutup ini menekankan bahwa tata naskah dinas bukan hanya soal menulis dokumen, tetapi juga soal mengendalikan alurnya dan menjaga keamanan informasi yang terkandung di dalamnya.",
+            "points": [
+              "Memahami pentingnya pengendalian distribusi dan penyimpanan dokumen resmi.",
+              "Mengenali prinsip pengamanan dokumen sesuai sifat dan tingkat aksesnya.",
+              "Membangun kebiasaan kerja yang lebih disiplin dalam menangani naskah dinas."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

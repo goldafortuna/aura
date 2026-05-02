@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, not } from 'drizzle-orm';
 import { db } from '../../../db';
 import { meetingMinutes, ctaItems } from '../../../db/schema';
 import { requireSecretary } from '../../../lib/middleware/auth';
@@ -28,17 +28,18 @@ async function reviewMeetingMinutesWithFallback(params: {
   systemPrompt: string;
   cfgCandidates: AiCallConfig[];
   unitHints?: Array<{ name: string; aliases?: string[] }>;
-}) {
+}): Promise<{ review: Awaited<ReturnType<typeof reviewMeetingMinutesText>>; modelUsed: string }> {
   let lastError: unknown;
 
   for (const cfg of params.cfgCandidates) {
     try {
-      return await reviewMeetingMinutesText({
+      const review = await reviewMeetingMinutesText({
         text: params.text,
         systemPrompt: params.systemPrompt,
         cfg,
         unitHints: params.unitHints,
       });
+      return { review, modelUsed: cfg.model };
     } catch (err) {
       lastError = err;
       console.warn('[meeting-minutes/analyze] AI provider failed:', {
@@ -87,6 +88,8 @@ const updateMeetingMinuteSchema = z.object({
 
 const approveFindingsSchema = z.object({
   approvedIndices: z.array(z.number().int().nonnegative()),
+  /** ID dari cta_items yang disetujui untuk masuk ke seksi Keputusan dan disimpan ke DB */
+  approvedCtaIds: z.array(z.string()).optional(),
 });
 
 const distributeSchema = z.object({
@@ -241,7 +244,7 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       .from(unitKerja)
       .where(isNull(unitKerja.userId));
 
-    const review = await reviewMeetingMinutesWithFallback({
+    const { review, modelUsed } = await reviewMeetingMinutesWithFallback({
       text,
       systemPrompt,
       cfgCandidates,
@@ -291,6 +294,7 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
         typoCount,
         ambiguousCount,
         ctaCount,
+        aiModel: modelUsed,
         // Update participantsCount dari hasil AI jika terdeteksi
         ...(detectedParticipants > 0 ? { participantsCount: detectedParticipants } : {}),
         findingsJson: review.findings,
@@ -347,59 +351,91 @@ app.post('/:id/approve-findings', async (c) => {
     return c.json({ error: 'Notula belum direview AI. Jalankan analisis terlebih dahulu.' }, 400);
   }
 
-  const { approvedIndices } = parsed.data;
+  const { approvedIndices, approvedCtaIds } = parsed.data;
 
-  // Build list of approved ApprovedFinding objects from stored findings JSON
+  // ── 1. Resolve approved CTAs ──────────────────────────────────────────────
+  // Fetch CTA rows that are approved for Keputusan section
+  let approvedCtaRows: (typeof ctaItems.$inferSelect)[] = [];
+  if (approvedCtaIds && approvedCtaIds.length > 0) {
+    approvedCtaRows = await db
+      .select()
+      .from(ctaItems)
+      .where(and(eq(ctaItems.meetingMinuteId, id), inArray(ctaItems.id, approvedCtaIds)));
+  }
+
+  // ── 2. Persist only approved CTAs to cta_items ────────────────────────────
+  // When approvedCtaIds is explicitly provided (even empty), prune non-approved CTAs
+  if (approvedCtaIds !== undefined) {
+    if (approvedCtaIds.length === 0) {
+      await db.delete(ctaItems).where(eq(ctaItems.meetingMinuteId, id));
+    } else {
+      await db
+        .delete(ctaItems)
+        .where(and(eq(ctaItems.meetingMinuteId, id), not(inArray(ctaItems.id, approvedCtaIds))));
+    }
+  }
+
+  // ── 3. Build approved findings list ───────────────────────────────────────
+  let approvedFindings: { originalText: string; suggestedText: string }[] = [];
+  if (approvedIndices.length > 0 && minuteRow.findingsJson) {
+    const allFindings = parseJsonArray<{ originalText: string; suggestedText: string }>(minuteRow.findingsJson);
+    approvedFindings = approvedIndices
+      .filter((i) => i >= 0 && i < allFindings.length)
+      .map((i) => ({
+        originalText: allFindings[i]!.originalText,
+        suggestedText: allFindings[i]!.suggestedText,
+      }));
+  }
+
+  // ── 4. Generate corrected document ────────────────────────────────────────
   let correctedStoragePath: string | null = minuteRow.correctedStoragePath ?? null;
   let correctedFilename: string | null = minuteRow.correctedFilename ?? null;
   let correctedAt: Date | null = minuteRow.correctedAt ?? null;
 
-  if (approvedIndices.length > 0 && minuteRow.findingsJson) {
+  const shouldGenerateDoc = approvedFindings.length > 0 || approvedCtaRows.length > 0;
+
+  if (shouldGenerateDoc) {
     try {
-      const allFindings = parseJsonArray<{
-        originalText: string;
-        suggestedText: string;
-      }>(minuteRow.findingsJson);
+      const downloaded = await downloadObject(minuteRow.storagePath);
+      const result = await applyFindingsToDocument({
+        bytes: downloaded.body,
+        mimeType: minuteRow.fileType,
+        filename: minuteRow.filename || minuteRow.title,
+        findings: approvedFindings,
+        approvedCtas: approvedCtaRows.map((c) => ({
+          title: c.title,
+          action: c.action,
+          picName: c.picName,
+          unit: c.unit,
+          deadline: c.deadline ? String(c.deadline) : null,
+          priority: c.priority as 'low' | 'medium' | 'high',
+        })),
+      });
 
-      const approvedFindings = approvedIndices
-        .filter((i) => i >= 0 && i < allFindings.length)
-        .map((i) => ({
-          originalText: allFindings[i]!.originalText,
-          suggestedText: allFindings[i]!.suggestedText,
-        }));
+      // Upload file terkoreksi ke storage
+      const pathParts = minuteRow.storagePath.split('/');
+      pathParts[pathParts.length - 1] = `corrected_${result.filename}`;
+      const newPath = pathParts.join('/');
 
-      if (approvedFindings.length > 0) {
-        const downloaded = await downloadObject(minuteRow.storagePath);
-        const result = await applyFindingsToDocument({
-          bytes: downloaded.body,
-          mimeType: minuteRow.fileType,
-          filename: minuteRow.filename || minuteRow.title,
-          findings: approvedFindings,
-        });
+      await uploadObject({
+        path: newPath,
+        body: result.buffer,
+        contentType: result.mimeType,
+        upsert: true,
+      });
 
-        // Upload file yang sudah dikoreksi ke storage di subfolder corrected/
-        const originalPath = minuteRow.storagePath;
-        const pathParts = originalPath.split('/');
-        pathParts[pathParts.length - 1] = `corrected_${result.filename}`;
-        const newPath = pathParts.join('/');
-
-        await uploadObject({
-          path: newPath,
-          body: result.buffer,
-          contentType: result.mimeType,
-          upsert: true,
-        });
-
-        correctedStoragePath = newPath;
-        correctedFilename = result.filename;
-        correctedAt = new Date();
-      }
+      correctedStoragePath = newPath;
+      correctedFilename = result.filename;
+      correctedAt = new Date();
     } catch (applyErr) {
-      // Koreksi dokumen gagal — tetap simpan approved indices, tapi tandai error
       console.error('[approve-findings] apply document error:', applyErr);
-      // Tidak throw — persetujuan tetap disimpan, hanya koreksi dokumen yang gagal
+      // Persetujuan tetap disimpan meski pembuatan dokumen gagal
     }
   }
+
+  // Update ctaCount sesuai jumlah CTA yang disetujui
+  const finalCtaCount =
+    approvedCtaIds !== undefined ? approvedCtaIds.length : minuteRow.ctaCount;
 
   const [updated] = await db
     .update(meetingMinutes)
@@ -408,10 +444,11 @@ app.post('/:id/approve-findings', async (c) => {
       correctedStoragePath,
       correctedFilename,
       correctedAt,
+      ctaCount: finalCtaCount,
       status: 'approved',
       updatedAt: new Date(),
     })
-      .where(and(eq(meetingMinutes.id, id), eq(meetingMinutes.userId, dbUser.id)))
+    .where(and(eq(meetingMinutes.id, id), eq(meetingMinutes.userId, dbUser.id)))
     .returning();
 
   const minute = updated;

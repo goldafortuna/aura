@@ -28,7 +28,8 @@ ALTER TABLE "meeting_minutes"
   ADD COLUMN IF NOT EXISTS "corrected_storage_path" text,
   ADD COLUMN IF NOT EXISTS "corrected_filename" text,
   ADD COLUMN IF NOT EXISTS "corrected_at" timestamp with time zone,
-  ADD COLUMN IF NOT EXISTS "distributed_at" timestamp with time zone;
+  ADD COLUMN IF NOT EXISTS "distributed_at" timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS "ai_model" text;
 
 -- Kolom dari migration 0001 untuk cta_items
 ALTER TABLE "cta_items"
@@ -159,6 +160,7 @@ async function main() {
     console.log('  + corrected_filename (text)');
     console.log('  + corrected_at (timestamp with time zone)');
     console.log('  + distributed_at (timestamp with time zone)');
+    console.log('  + ai_model (text) — model AI yang digunakan analisis');
     console.log('  + unit_kerja table (jika belum ada)');
     console.log('  + email_configs table (jika belum ada)');
     console.log('  + wa_reminder_templates table (jika belum ada)');

@@ -164,6 +164,7 @@ export default function AcademyCourseDetailPage({ params }: { params: { courseId
       <section className="space-y-4">
         {course.modules.map((module, index) => {
           const allLessonsCompleted = module.lessons.length > 0 && module.completedLessons === module.lessons.length;
+          const hasQuiz = module.quizQuestionCount > 0;
           return (
             <motion.article
               key={module.id}
@@ -181,7 +182,9 @@ export default function AcademyCourseDetailPage({ params }: { params: { courseId
                   </div>
                   <div className="rounded-2xl bg-white/15 px-4 py-3 text-sm backdrop-blur-sm">
                     <p>{module.completedLessons}/{module.lessons.length} lesson selesai</p>
-                    <p className="mt-1 text-white/70">{module.quizQuestionCount} soal quiz di akhir modul</p>
+                    <p className="mt-1 text-white/70">
+                      {hasQuiz ? `${module.quizQuestionCount} soal quiz di akhir modul` : 'Tanpa quiz akhir modul'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -211,32 +214,53 @@ export default function AcademyCourseDetailPage({ params }: { params: { courseId
                   </Link>
                 ))}
 
-                <div className={`flex items-center justify-between rounded-2xl border px-4 py-4 ${allLessonsCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${allLessonsCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {allLessonsCompleted ? <HelpCircle className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
+                {hasQuiz ? (
+                  <div className={`flex items-center justify-between rounded-2xl border px-4 py-4 ${allLessonsCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${allLessonsCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {allLessonsCompleted ? <HelpCircle className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Quiz Akhir Modul</h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {allLessonsCompleted
+                            ? `Semua lesson modul ini sudah selesai. Lanjutkan ke quiz ${module.quizQuestionCount} soal.`
+                            : 'Quiz dibuka setelah seluruh lesson pada modul ini selesai dibaca dan ditandai selesai.'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Quiz Akhir Modul</h3>
-                      <p className="mt-1 text-sm text-gray-600">
-                        {allLessonsCompleted
-                          ? `Semua lesson modul ini sudah selesai. Lanjutkan ke quiz ${module.quizQuestionCount} soal.`
-                          : 'Quiz dibuka setelah seluruh lesson pada modul ini selesai dibaca dan ditandai selesai.'}
-                      </p>
-                    </div>
+                    {allLessonsCompleted ? (
+                      <Link
+                        href={`/academy/courses/${course.id}/modules/${module.id}/quiz`}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+                      >
+                        {module.quizCompleted ? 'Buka Ulang Quiz' : 'Mulai Quiz'}
+                        <ChevronRight className="h-4 w-4" />
+                      </Link>
+                    ) : (
+                      <span className="rounded-2xl border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700">Belum terbuka</span>
+                    )}
                   </div>
-                  {allLessonsCompleted ? (
-                    <Link
-                      href={`/academy/courses/${course.id}/modules/${module.id}/quiz`}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
-                    >
-                      {module.quizCompleted ? 'Buka Ulang Quiz' : 'Mulai Quiz'}
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  ) : (
-                    <span className="rounded-2xl border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700">Belum terbuka</span>
-                  )}
-                </div>
+                ) : (
+                  <div className={`flex items-center justify-between rounded-2xl border px-4 py-4 ${allLessonsCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${allLessonsCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {allLessonsCompleted ? <CheckCircle2 className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Penyelesaian Modul</h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {allLessonsCompleted
+                            ? 'Seluruh lesson pada modul ini sudah selesai. Modul dapat dianggap tuntas tanpa quiz akhir.'
+                            : 'Modul ini tidak memiliki quiz akhir. Selesaikan semua lesson untuk menuntaskan modul.'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`rounded-2xl border px-4 py-2 text-sm font-semibold ${allLessonsCompleted ? 'border-emerald-300 text-emerald-700' : 'border-slate-300 text-slate-700'}`}>
+                      {allLessonsCompleted ? 'Modul selesai' : 'Sedang dipelajari'}
+                    </span>
+                  </div>
+                )}
               </div>
             </motion.article>
           );

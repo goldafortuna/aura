@@ -39,6 +39,7 @@ interface MeetingMinute {
   correctedFilename?: string | null;
   correctedAt?: string | null;
   ctasJson?: unknown | null;
+  aiModel?: string | null;
   analysisError?: string | null;
   distributedAt?: string | null;
 }
@@ -69,6 +70,14 @@ type UnitKerjaRow = {
   name: string;
   aliasesJson: string;
   email: string;
+};
+
+type AiProviderListItem = {
+  provider: string;
+  displayName: string;
+  model: string;
+  isActive: boolean;
+  hasApiKey: boolean;
 };
 
 type StorageProvider = 'local' | 'cloudflare-r2';
@@ -162,6 +171,13 @@ const statusBorderMap: Record<string, string> = {
   error: 'border-l-red-400',
   uploaded: 'border-l-slate-300',
 };
+
+function shortModelLabel(p: { provider: string; displayName: string }) {
+  if (p.provider === 'deepseek') return 'DeepSeek';
+  if (p.provider === 'openai') return 'OpenAI (GPT)';
+  if (p.provider === 'anthropic') return 'Anthropic';
+  return p.displayName;
+}
 
 function storageProviderLabel(provider: StorageProvider) {
   if (provider === 'local') return 'Storage Lokal';
@@ -289,6 +305,9 @@ export const MeetingMinutes: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
+  const [aiProviders, setAiProviders] = useState<AiProviderListItem[]>([]);
+  const [aiProvidersLoading, setAiProvidersLoading] = useState(true);
+  const [providerActivating, setProviderActivating] = useState(false);
 
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
@@ -300,6 +319,7 @@ export const MeetingMinutes: React.FC = () => {
   const [ctaLoading, setCtaLoading] = useState(false);
   const [ctaSavingIds, setCtaSavingIds] = useState<Set<string>>(new Set());
   const [approvedSet, setApprovedSet] = useState<Set<number>>(new Set());
+  const [approvedCtaSet, setApprovedCtaSet] = useState<Set<string>>(new Set());
   const [approvingSave, setApprovingSave] = useState(false);
   const [downloadingCorrected, setDownloadingCorrected] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'findings' | 'ctas'>('findings');
@@ -336,6 +356,38 @@ export const MeetingMinutes: React.FC = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const activeProviderId = useMemo(() => aiProviders.find((p) => p.isActive)?.provider ?? '', [aiProviders]);
+
+  const loadAiProviders = useCallback(async () => {
+    setAiProvidersLoading(true);
+    try {
+      const res = await fetch('/api/ai/providers', { cache: 'no-store' });
+      if (!res.ok) { setAiProviders([]); return; }
+      const json = (await res.json()) as { data: AiProviderListItem[] };
+      setAiProviders(json.data ?? []);
+    } catch {
+      setAiProviders([]);
+    } finally {
+      setAiProvidersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadAiProviders(); }, [loadAiProviders]);
+
+  const handleActivateProvider = async (nextProvider: string) => {
+    if (!nextProvider || nextProvider === activeProviderId) return;
+    setProviderActivating(true);
+    try {
+      const res = await fetch(`/api/ai/providers/${nextProvider}/activate`, { method: 'POST' });
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal mengganti model'));
+      await loadAiProviders();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Terjadi kesalahan.', 'err');
+    } finally {
+      setProviderActivating(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -465,6 +517,7 @@ export const MeetingMinutes: React.FC = () => {
     setActiveTab('findings');
     const savedIndices = parseApprovedIndices(minute.approvedFindingsJson);
     setApprovedSet(new Set(savedIndices));
+    setApprovedCtaSet(new Set());
     setCtaLoading(true);
     try {
       const res = await fetch(`/api/meeting-minutes/${minute.id}/ctas`, { cache: 'no-store' });
@@ -478,7 +531,12 @@ export const MeetingMinutes: React.FC = () => {
     }
   };
 
-  const closeReview = () => { setReviewMinute(null); setReviewCtas([]); setApprovedSet(new Set()); };
+  const closeReview = () => {
+    setReviewMinute(null);
+    setReviewCtas([]);
+    setApprovedSet(new Set());
+    setApprovedCtaSet(new Set());
+  };
 
   const findings = useMemo(() => parseFindings(reviewMinute?.findingsJson), [reviewMinute]);
 
@@ -493,6 +551,16 @@ export const MeetingMinutes: React.FC = () => {
   const selectAllFindings = () => setApprovedSet(new Set(findings.map((_, i) => i)));
   const clearAllFindings = () => setApprovedSet(new Set());
 
+  const toggleCtaApproval = (ctaId: string) => {
+    setApprovedCtaSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(ctaId)) next.delete(ctaId); else next.add(ctaId);
+      return next;
+    });
+  };
+  const selectAllCtas = () => setApprovedCtaSet(new Set(reviewCtas.map((c) => c.id)));
+  const clearAllCtas = () => setApprovedCtaSet(new Set());
+
   const saveApprovedFindings = async () => {
     if (!reviewMinute) return;
     setApprovingSave(true);
@@ -500,21 +568,24 @@ export const MeetingMinutes: React.FC = () => {
       const res = await fetch(`/api/meeting-minutes/${reviewMinute.id}/approve-findings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvedIndices: Array.from(approvedSet) }),
+        body: JSON.stringify({
+          approvedIndices: Array.from(approvedSet),
+          approvedCtaIds: Array.from(approvedCtaSet),
+        }),
       });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal menyimpan persetujuan'));
       const json = (await res.json()) as { data: MeetingMinute };
       setMinutes((prev) => prev.map((m) => m.id === json.data.id ? json.data : m));
       setReviewMinute(json.data);
-      if (!json.data.correctedStoragePath && approvedSet.size > 0) {
+      const hasCorrected = !!json.data.correctedStoragePath;
+      if (!hasCorrected && (approvedSet.size > 0 || approvedCtaSet.size > 0)) {
         showToast('Persetujuan tersimpan, tetapi file .docx terkoreksi belum berhasil dibuat.', 'err');
         return;
       }
-      const hasCorrected = !!json.data.correctedStoragePath;
       showToast(
         hasCorrected
-          ? `${approvedSet.size} temuan disetujui. Dokumen terkoreksi siap diunduh.`
-          : `${approvedSet.size} temuan disetujui dan disimpan.`,
+          ? `Dokumen terkoreksi siap diunduh (${approvedSet.size} perbaikan, ${approvedCtaSet.size} keputusan).`
+          : 'Persetujuan disimpan.',
         'ok',
       );
     } catch (e) {
@@ -697,6 +768,42 @@ export const MeetingMinutes: React.FC = () => {
             </div>
           ) : null}
         </div>
+
+        {/* AI model selector */}
+        <div className="flex shrink-0 flex-col gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Model AI</span>
+          <div className="relative">
+            <select
+              className="h-9 max-w-[200px] cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm outline-none transition hover:border-slate-300 focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
+              value={activeProviderId}
+              onChange={(e) => void handleActivateProvider(e.target.value)}
+              disabled={aiProvidersLoading || providerActivating || aiProviders.length === 0}
+              aria-label="Pilih model AI aktif"
+            >
+              {aiProvidersLoading ? (
+                <option value="">Memuat…</option>
+              ) : (
+                <>
+                  <option value="" disabled={Boolean(activeProviderId)}>Pilih model</option>
+                  {aiProviders.map((p) => (
+                    <option key={p.provider} value={p.provider} disabled={!p.hasApiKey}>
+                      {shortModelLabel(p)}{!p.hasApiKey ? ' (no key)' : ''}
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+              {providerActivating
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                : <ChevronRight className="h-3.5 w-3.5 rotate-90 text-slate-400" />
+              }
+            </div>
+          </div>
+          {!aiProvidersLoading && !aiProviders.some((p) => p.hasApiKey) ? (
+            <p className="text-xs text-amber-600">Belum ada API key. Buka Pengaturan.</p>
+          ) : null}
+        </div>
       </div>
 
       {/* ── Stats ─────────────────────────────────────────────────────────────── */}
@@ -851,11 +958,19 @@ export const MeetingMinutes: React.FC = () => {
                             {minute.ambiguousCount} ambigu
                           </span>
                           <span className="rounded-md bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
-                            {minute.ctaCount} tindak lanjut
+                            {minute.ctaCount} keputusan
                           </span>
                           {Boolean(minute.approvedFindingsJson) && (
                             <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                              {parseApprovedIndices(minute.approvedFindingsJson).length} disetujui
+                              {parseApprovedIndices(minute.approvedFindingsJson).length} perbaikan disetujui
+                            </span>
+                          )}
+                          {minute.aiModel && (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500" title="Model AI yang digunakan">
+                              <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                              </svg>
+                              {minute.aiModel}
                             </span>
                           )}
                         </div>
@@ -908,23 +1023,18 @@ export const MeetingMinutes: React.FC = () => {
                           </button>
                         )}
 
-                        {['reviewed', 'approved'].includes(minute.status) && (
+                        {/* Distribusi Email hanya aktif setelah dokumen terkoreksi tersedia */}
+                        {minute.correctedStoragePath && (
                           <button
                             onClick={() => openDistribute(minute)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+                              minute.status === 'distributed'
+                                ? 'border border-emerald-200 bg-emerald-50 font-medium text-emerald-700 hover:bg-emerald-100'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
                           >
                             <Send className="h-3.5 w-3.5" />
-                            Distribusi Email
-                          </button>
-                        )}
-
-                        {minute.status === 'distributed' && (
-                          <button
-                            onClick={() => openDistribute(minute)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                            Kirim Ulang
+                            {minute.status === 'distributed' ? 'Kirim Ulang' : 'Distribusi Email'}
                           </button>
                         )}
                       </div>
@@ -1191,6 +1301,14 @@ export const MeetingMinutes: React.FC = () => {
                     <span className={`rounded-full px-2.5 py-0.5 font-semibold ${statusBadgeClass(reviewMinute.status)}`}>
                       {statusLabel(reviewMinute.status)}
                     </span>
+                    {reviewMinute.aiModel && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 font-medium text-slate-500" title="Model AI">
+                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                        </svg>
+                        {reviewMinute.aiModel}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
@@ -1238,7 +1356,7 @@ export const MeetingMinutes: React.FC = () => {
                       >
                         {tab === 'findings'
                           ? `Temuan (${findings.length})`
-                          : `Tindak Lanjut (${ctaLoading ? '…' : reviewCtas.length})`
+                          : `Keputusan (${ctaLoading ? '…' : reviewCtas.length})`
                         }
                       </button>
                     ))}
@@ -1328,51 +1446,15 @@ export const MeetingMinutes: React.FC = () => {
                             })}
                           </div>
 
-                          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                            <div>
-                              <p className="text-xs text-slate-400">
-                                Perubahan yang disetujui akan diterapkan ke dokumen dan bisa diunduh.
-                              </p>
-                              {reviewMinute.correctedAt && (
-                                <p className="mt-0.5 flex items-center gap-1 text-xs text-emerald-600">
-                                  <CheckCircle className="h-3 w-3" />
-                                  Diperbarui {new Date(reviewMinute.correctedAt).toLocaleString('id-ID')}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {reviewMinute.correctedStoragePath && (
-                                <button
-                                  onClick={() => void downloadCorrected(reviewMinute)}
-                                  disabled={downloadingCorrected === reviewMinute.id}
-                                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                                >
-                                  {downloadingCorrected === reviewMinute.id
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <Download className="h-4 w-4" />
-                                  }
-                                  Unduh .docx
-                                </button>
-                              )}
-                              <button
-                                onClick={() => void saveApprovedFindings()}
-                                disabled={approvingSave}
-                                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
-                              >
-                                {approvingSave
-                                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                                  : <CheckCircle className="h-4 w-4" />
-                                }
-                                Setujui {approvedSet.size > 0 ? `${approvedSet.size} ` : ''}Perubahan
-                              </button>
-                            </div>
-                          </div>
+                          <p className="mt-4 text-xs text-slate-400">
+                            Perbaikan yang dicentang akan diterapkan ke dokumen. Pilih juga keputusan di tab <span className="font-medium text-slate-600">Tindak Lanjut</span>.
+                          </p>
                         </>
                       )}
                     </div>
                   )}
 
-                  {/* Tindak lanjut tab */}
+                  {/* Tindak lanjut / Keputusan tab */}
                   {activeTab === 'ctas' && (
                     <div className="p-6">
                       {ctaLoading ? (
@@ -1384,58 +1466,145 @@ export const MeetingMinutes: React.FC = () => {
                           Tidak ada tindak lanjut terdeteksi dari notula ini.
                         </div>
                       ) : (
-                        <div className="max-h-[500px] space-y-3 overflow-y-auto pr-1">
-                          {reviewCtas.map((cta) => (
-                            <div key={cta.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                              <div className="mb-2 flex items-start justify-between gap-2">
-                                <p className="text-sm font-semibold text-slate-800">{cta.title}</p>
-                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                  cta.priority === 'high' ? 'bg-red-100 text-red-700' :
-                                  cta.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
-                                  'bg-emerald-100 text-emerald-700'
-                                }`}>
-                                  {cta.priority === 'high' ? 'Tinggi' : cta.priority === 'medium' ? 'Sedang' : 'Rendah'}
-                                </span>
-                              </div>
-                              <p className="mb-3 text-xs text-slate-600">{cta.action}</p>
-                              <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                {cta.picName && <span><span className="font-medium">PIC:</span> {cta.picName}</span>}
-                                {cta.unit && <span><span className="font-medium">Unit:</span> {cta.unit}</span>}
-                                {cta.deadline && <span><span className="font-medium">Deadline:</span> {cta.deadline}</span>}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <label className="text-xs font-medium text-slate-500">Status:</label>
-                                <select
-                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                  value={cta.status}
-                                  disabled={ctaSavingIds.has(cta.id)}
-                                  onChange={(e) => void updateCta(cta.id, { status: e.target.value as CtaItemRow['status'] })}
-                                >
-                                  <option value="pending">Pending</option>
-                                  <option value="in-progress">Dalam proses</option>
-                                  <option value="completed">Selesai</option>
-                                </select>
-                                {ctaSavingIds.has(cta.id) && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                                    <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan
-                                  </span>
-                                )}
-                              </div>
+                        <>
+                          <div className="mb-4 flex items-center justify-between">
+                            <p className="text-sm text-slate-600">
+                              <span className="font-semibold text-violet-700">{approvedCtaSet.size}</span> dari{' '}
+                              {reviewCtas.length} keputusan dipilih untuk Keputusan Rapat
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={selectAllCtas}
+                                className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                              >
+                                <Check className="h-3.5 w-3.5" /> Pilih Semua
+                              </button>
+                              <button
+                                onClick={clearAllCtas}
+                                className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                              >
+                                <Minus className="h-3.5 w-3.5" /> Kosongkan
+                              </button>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </div>
 
-                      {reviewCtas.length > 0 && (
-                        <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs text-slate-400">
-                          {ctaSavingIds.size > 0
-                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Menyimpan perubahan…</>
-                            : <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" />Perubahan tersimpan otomatis.</>
-                          }
-                        </div>
+                          <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                            {reviewCtas.map((cta) => {
+                              const isApproved = approvedCtaSet.has(cta.id);
+                              return (
+                                <div
+                                  key={cta.id}
+                                  onClick={() => toggleCtaApproval(cta.id)}
+                                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                                    isApproved
+                                      ? 'border-violet-300 bg-violet-50/50 shadow-sm'
+                                      : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                                      isApproved ? 'border-violet-600 bg-violet-600' : 'border-slate-300'
+                                    }`}>
+                                      {isApproved && <Check className="h-3 w-3 text-white" />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="mb-2 flex items-start justify-between gap-2">
+                                        <p className="text-sm font-semibold text-slate-800">{cta.title}</p>
+                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                          cta.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                          cta.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                          'bg-emerald-100 text-emerald-700'
+                                        }`}>
+                                          {cta.priority === 'high' ? 'Tinggi' : cta.priority === 'medium' ? 'Sedang' : 'Rendah'}
+                                        </span>
+                                      </div>
+                                      <p className="mb-3 text-xs text-slate-600">{cta.action}</p>
+                                      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                                        {cta.picName && <span><span className="font-medium">PIC:</span> {cta.picName}</span>}
+                                        {cta.unit && <span><span className="font-medium">Unit:</span> {cta.unit}</span>}
+                                        {cta.deadline && <span><span className="font-medium">Deadline:</span> {cta.deadline}</span>}
+                                      </div>
+                                      <div
+                                        className="flex items-center gap-2"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <label className="text-xs font-medium text-slate-500">Status:</label>
+                                        <select
+                                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                          value={cta.status}
+                                          disabled={ctaSavingIds.has(cta.id)}
+                                          onChange={(e) => void updateCta(cta.id, { status: e.target.value as CtaItemRow['status'] })}
+                                        >
+                                          <option value="pending">Pending</option>
+                                          <option value="in-progress">Dalam proses</option>
+                                          <option value="completed">Selesai</option>
+                                        </select>
+                                        {ctaSavingIds.has(cta.id) && (
+                                          <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs text-slate-400">
+                            {ctaSavingIds.size > 0
+                              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Menyimpan status…</>
+                              : <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" />Perubahan status tersimpan otomatis.</>
+                            }
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
+
+                  {/* ── Modal footer: Setujui & Generate Dokumen ─────────────────── */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/50 px-6 py-4">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                      {reviewMinute.correctedAt && (
+                        <span className="flex items-center gap-1 text-emerald-600">
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          Diperbarui {new Date(reviewMinute.correctedAt).toLocaleString('id-ID')}
+                        </span>
+                      )}
+                      <span>
+                        <span className="font-semibold text-indigo-700">{approvedSet.size}</span> perbaikan ·{' '}
+                        <span className="font-semibold text-violet-700">{approvedCtaSet.size}</span> keputusan dipilih
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {reviewMinute.correctedStoragePath && (
+                        <button
+                          onClick={() => void downloadCorrected(reviewMinute)}
+                          disabled={downloadingCorrected === reviewMinute.id}
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                        >
+                          {downloadingCorrected === reviewMinute.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Download className="h-4 w-4" />
+                          }
+                          Unduh .docx
+                        </button>
+                      )}
+                      <button
+                        onClick={() => void saveApprovedFindings()}
+                        disabled={approvingSave || (approvedSet.size === 0 && approvedCtaSet.size === 0)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+                        title={approvedSet.size === 0 && approvedCtaSet.size === 0 ? 'Pilih minimal satu perbaikan atau keputusan' : undefined}
+                      >
+                        {approvingSave
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <CheckCircle className="h-4 w-4" />
+                        }
+                        Setujui & Generate Dokumen
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </motion.div>
