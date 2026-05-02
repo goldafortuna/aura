@@ -465,7 +465,14 @@ export const DocumentReview: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const activeProviderId = useMemo(() => aiProviders.find((p) => p.isActive)?.provider ?? '', [aiProviders]);
+  /** Satu-satunya provider aktif; jika DB pernah punya >1 isActive (bug lama), utamakan yang personal (anthropic). */
+  const activeProviderId = useMemo(() => {
+    const active = aiProviders.filter((p) => p.isActive);
+    if (active.length === 0) return '';
+    if (active.length === 1) return active[0].provider;
+    const personal = active.find((p) => p.provider === 'anthropic');
+    return personal?.provider ?? active[0].provider;
+  }, [aiProviders]);
 
   const handleActivateProvider = async (nextProvider: string) => {
     if (!nextProvider || nextProvider === activeProviderId) return;

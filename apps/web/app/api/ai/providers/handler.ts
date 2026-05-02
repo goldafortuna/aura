@@ -197,7 +197,9 @@ app.post('/:provider/activate', async (c) => {
   const isPersonal = isUserProvider(provider);
   if (!isGlobal && !isPersonal) return c.json({ error: 'Provider tidak dikenal.' }, 400);
   if (isGlobal && !isSuperAdmin(dbUser)) return c.json({ error: 'Hanya Super Admin yang dapat mengaktifkan provider default sistem.' }, 403);
-  if (isPersonal && !isSecretary(dbUser)) return c.json({ error: 'Hanya Secretary yang dapat mengaktifkan provider personal.' }, 403);
+  if (isPersonal && !isSecretary(dbUser) && !isSuperAdmin(dbUser)) {
+    return c.json({ error: 'Hanya Secretary yang dapat mengaktifkan provider personal.' }, 403);
+  }
 
   const ownerWhere = isGlobal ? isNull(aiProviderConfigs.userId) : eq(aiProviderConfigs.userId, dbUser.id);
 
@@ -211,14 +213,19 @@ app.post('/:provider/activate', async (c) => {
     return c.json({ error: 'Provider belum disimpan / API key belum diisi.' }, 400);
   }
 
-  await db
-    .update(aiProviderConfigs)
-    .set({ isActive: false, updatedAt: new Date() })
-    .where(
-      isGlobal
-        ? and(isNull(aiProviderConfigs.userId), inArray(aiProviderConfigs.provider, [...GLOBAL_PROVIDERS]))
-        : and(eq(aiProviderConfigs.userId, dbUser.id), inArray(aiProviderConfigs.provider, [...USER_PROVIDERS])),
-    );
+  // Nonaktifkan semua provider (global + personal user) agar hanya satu yang aktif — sama seperti routes/ai.ts.
+  await Promise.all([
+    db
+      .update(aiProviderConfigs)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(isNull(aiProviderConfigs.userId), inArray(aiProviderConfigs.provider, [...GLOBAL_PROVIDERS]))),
+    db
+      .update(aiProviderConfigs)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(
+        and(eq(aiProviderConfigs.userId, dbUser.id), inArray(aiProviderConfigs.provider, [...USER_PROVIDERS])),
+      ),
+  ]);
 
   const [activated] = await db
     .update(aiProviderConfigs)
