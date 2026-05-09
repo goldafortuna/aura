@@ -1119,6 +1119,11 @@ app.delete('/:id', async (c) => {
       .from(taskAttachments)
       .where(eq(taskAttachments.taskId, task.id));
 
+    // Hapus anak secara eksplisit: CASCADE dari `tasks` bisa memilih urutan yang memicu
+    // FK (checklist dihapus sebelum lampiran yang mereferensinya).
+    await db.delete(taskAttachments).where(eq(taskAttachments.taskId, task.id));
+    await db.delete(taskChecklistItems).where(eq(taskChecklistItems.taskId, task.id));
+
     const [deleted] = await db
       .delete(tasks)
       .where(and(eq(tasks.id, id), eq(tasks.userId, dbUser.id)))
@@ -1135,6 +1140,12 @@ app.delete('/:id', async (c) => {
     return c.json({ data: deleted });
   } catch (error) {
     if (isTaskSchemaCompatibilityError(error)) {
+      try {
+        await db.execute(sql`delete from task_attachments where task_id = ${id}`);
+        await db.execute(sql`delete from task_checklist_items where task_id = ${id}`);
+      } catch (childError) {
+        if (!isTaskSchemaCompatibilityError(childError)) throw childError;
+      }
       const result = await db.execute(sql`
         delete from tasks
         where id = ${id} and user_id = ${dbUser.id}
