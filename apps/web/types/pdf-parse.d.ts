@@ -4,3 +4,9 @@ declare module 'pdf-parse' {
   const pdfParse: (data: Buffer | Uint8Array, options?: unknown) => Promise<{ text?: string }>;
   export default pdfParse;
 }
+
+/** Implementasi sebenarnya; pakai ini lewat `parsePdfBuffer` di lib/pdfParseSafe.ts */
+declare module 'pdf-parse/lib/pdf-parse.js' {
+  const pdfParse: (data: Buffer | Uint8Array, options?: unknown) => Promise<{ text?: string }>;
+  export default pdfParse;
+}

@@ -94,6 +94,8 @@ function mapApiDocumentsToUi(json: { data: ApiDocument[] }): Document[] {
       ambiguousCount: doc.ambiguousCount ?? 0,
       aiReview,
       analysisError: doc.analysisError ?? null,
+      analysisProvider: doc.analysisProvider ?? null,
+      analysisModel: doc.analysisModel ?? null,
       createdAt: doc.createdAt,
       uploadDate: new Date(doc.createdAt).toISOString().slice(0, 10),
       sizeLabel: bytesToSize(doc.fileSize ?? 0),
@@ -112,6 +114,8 @@ interface ApiDocument {
   ambiguousCount: number;
   findingsJson?: unknown | null;
   analysisError?: string | null;
+  analysisProvider?: string | null;
+  analysisModel?: string | null;
   analyzedAt?: string | null;
   createdAt: string;
 }
@@ -127,6 +131,8 @@ interface Document {
   ambiguousCount: number;
   aiReview?: AiReviewPayload | null;
   analysisError?: string | null;
+  analysisProvider?: string | null;
+  analysisModel?: string | null;
   createdAt: string;
   uploadDate: string;
   sizeLabel: string;
@@ -495,7 +501,18 @@ export const DocumentReview: React.FC = () => {
       setAnalyzingDocIds((prev) => ({ ...prev, [docId]: true }));
       setDocuments((prev) =>
         prev.map((d) =>
-          d.id === docId ? { ...d, status: 'processing', analysisError: null, typoCount: 0, ambiguousCount: 0, aiReview: null } : d,
+          d.id === docId
+            ? {
+                ...d,
+                status: 'processing',
+                analysisError: null,
+                typoCount: 0,
+                ambiguousCount: 0,
+                aiReview: null,
+                analysisProvider: null,
+                analysisModel: null,
+              }
+            : d,
         ),
       );
       const res = await fetch(`/api/documents/${docId}/analyze`, { method: 'POST' });
@@ -628,8 +645,14 @@ export const DocumentReview: React.FC = () => {
       const rawBody = await uploadRes.text();
       let uploadJson: unknown = null;
       if (rawBody.trim()) {
-        try { uploadJson = JSON.parse(rawBody) as unknown; }
-        catch { throw new Error(`Gagal upload dokumen (HTTP ${uploadRes.status}). Respons bukan JSON.`); }
+        try {
+          uploadJson = JSON.parse(rawBody) as unknown;
+        } catch {
+          const snippet = rawBody.replace(/\s+/g, ' ').slice(0, 200);
+          throw new Error(
+            `Gagal upload dokumen (HTTP ${uploadRes.status}). Respons bukan JSON: ${snippet}`,
+          );
+        }
       }
       if (!uploadRes.ok) {
         const errMsg = uploadJson && typeof uploadJson === 'object' && 'error' in uploadJson
@@ -1057,6 +1080,20 @@ export const DocumentReview: React.FC = () => {
                           <span>{formatDate(doc.uploadDate)}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {doc.analysisProvider ? (
+                            <span
+                              className="inline-flex max-w-full items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800"
+                              title={`Review AI: ${shortModelLabel({ provider: doc.analysisProvider, displayName: '' })}${doc.analysisModel ? ` (${doc.analysisModel})` : ''}`}
+                            >
+                              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-indigo-500">
+                                AI
+                              </span>
+                              <span className="truncate">
+                                {shortModelLabel({ provider: doc.analysisProvider, displayName: '' })}
+                                {doc.analysisModel ? ` · ${doc.analysisModel}` : ''}
+                              </span>
+                            </span>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => openFindings(doc)}

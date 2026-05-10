@@ -4,9 +4,9 @@ test.describe('Phase 3 access and analytics', () => {
   test('role ganda sees secretary features, system settings, and time savings analytics', async ({ page, request }) => {
     await page.goto('/app');
 
-    await expect(page.locator('main h1').filter({ hasText: 'Dashboard' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Filter Periode Dashboard')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('button', { name: /Review Dokumen/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Notula Rapat/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Notula$/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Pengaturan Sistem/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Waktu Dihemat' })).toBeVisible();
 

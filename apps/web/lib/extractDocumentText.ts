@@ -1,3 +1,5 @@
+import { parsePdfBuffer } from '@/lib/pdfParseSafe';
+
 export async function extractDocumentText(params: { bytes: Uint8Array; mimeType: string; filename: string }) {
   const { bytes, mimeType, filename } = params;
   const lower = filename.toLowerCase();
@@ -8,11 +10,8 @@ export async function extractDocumentText(params: { bytes: Uint8Array; mimeType:
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || lower.endsWith('.docx');
 
   if (isPdf) {
-    // pdf-parse has historically executed filesystem reads at module import time in some builds.
-    // Dynamic import avoids breaking `next build` when collecting route module graphs.
-    const { default: pdfParse } = await import('pdf-parse');
     const buf = Buffer.from(bytes);
-    const parsed = await pdfParse(buf);
+    const parsed = await parsePdfBuffer(buf);
     return parsed.text ?? '';
   }
 

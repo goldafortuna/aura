@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, HelpCircle, Loader2, XCircle } from 'lucide-react';
 
 type QuizQuestion = {
@@ -23,7 +23,12 @@ type QuizPayload = {
   questions: QuizQuestion[];
 };
 
-export default function AcademyModuleQuizPage({ params }: { params: { courseId: string; moduleId: string } }) {
+export default function AcademyModuleQuizPage({
+  params,
+}: {
+  params: Promise<{ courseId: string; moduleId: string }>;
+}) {
+  const { courseId, moduleId } = use(params);
   const [data, setData] = useState<QuizPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -37,7 +42,7 @@ export default function AcademyModuleQuizPage({ params }: { params: { courseId: 
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/academy/modules/${params.moduleId}/quiz`, { cache: 'no-store' });
+        const res = await fetch(`/api/academy/modules/${moduleId}/quiz`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Gagal memuat quiz modul (HTTP ${res.status})`);
         const json = await res.json();
         if (!cancelled) setData(json.data ?? null);
@@ -52,7 +57,7 @@ export default function AcademyModuleQuizPage({ params }: { params: { courseId: 
     return () => {
       cancelled = true;
     };
-  }, [params.moduleId]);
+  }, [moduleId]);
 
   const answeredCount = useMemo(() => data?.questions.filter((question) => question.attempt).length ?? 0, [data]);
   const correctCount = useMemo(
@@ -128,7 +133,7 @@ export default function AcademyModuleQuizPage({ params }: { params: { courseId: 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Link href={`/academy/courses/${params.courseId}`} className="inline-flex items-center gap-2 font-medium text-gray-600 hover:text-gray-900">
+        <Link href={`/academy/courses/${courseId}`} className="inline-flex items-center gap-2 font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" />
           Kembali ke course
         </Link>
@@ -242,7 +247,7 @@ export default function AcademyModuleQuizPage({ params }: { params: { courseId: 
           </p>
           <div className="mt-5">
             <Link
-              href={`/academy/courses/${params.courseId}`}
+              href={`/academy/courses/${courseId}`}
               className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
               Kembali ke halaman course

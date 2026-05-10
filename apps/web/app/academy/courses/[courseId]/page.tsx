@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight, Clock, FileText, HelpCircle, Lock } from 'lucide-react';
 
@@ -79,7 +79,8 @@ function getLessonFormatLabel(lesson: Lesson) {
   return 'PDF lesson';
 }
 
-export default function AcademyCourseDetailPage({ params }: { params: { courseId: string } }) {
+export default function AcademyCourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
+  const { courseId } = use(params);
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,8 +92,8 @@ export default function AcademyCourseDetailPage({ params }: { params: { courseId
       setLoading(true);
       setError(null);
       try {
-        await fetch(`/api/academy/progress/courses/${params.courseId}`, { cache: 'no-store' });
-        const res = await fetch(`/api/academy/courses/${params.courseId}`, { cache: 'no-store' });
+        await fetch(`/api/academy/progress/courses/${courseId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/academy/courses/${courseId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Gagal memuat detail course (HTTP ${res.status})`);
         const json = await res.json();
         if (!cancelled) setCourse(json.data ?? null);
@@ -107,7 +108,7 @@ export default function AcademyCourseDetailPage({ params }: { params: { courseId
     return () => {
       cancelled = true;
     };
-  }, [params.courseId]);
+  }, [courseId]);
 
   if (loading) {
     return <div className="h-64 animate-pulse rounded-3xl bg-white" />;

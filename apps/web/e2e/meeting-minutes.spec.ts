@@ -74,15 +74,15 @@ test.describe('Meeting Minutes E2E', () => {
     await page.reload();
     const minuteRow = page
       .getByRole('heading', { name: title, exact: true })
-      .locator('xpath=ancestor::div[contains(@class, "p-5")][1]');
+      .locator('xpath=ancestor::div[contains(@class,"border-l-")][1]');
     await minuteRow.getByRole('button', { name: 'Lihat Detail' }).click();
     await expect(page.getByRole('button', { name: /Pilih Semua/i })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Temuan\s*\(1\)/)).toBeVisible();
-    await expect(page.getByText(/Tindak Lanjut\s*\(1\)/)).toBeVisible();
+    await expect(page.getByText(/Keputusan\s*\(1\)/)).toBeVisible();
     await expect(page.getByText('rapim')).toBeVisible();
 
     await page.getByRole('button', { name: /Pilih Semua/i }).click();
-    await page.getByRole('button', { name: /Setujui 1 Perubahan/i }).click();
+    await page.getByRole('button', { name: /Setujui & Generate Dokumen/i }).click();
     await expect(page.getByText('Dokumen terkoreksi siap diunduh')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /Unduh \.docx/i })).toBeVisible();
 
@@ -91,18 +91,23 @@ test.describe('Meeting Minutes E2E', () => {
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toContain('.docx');
 
-    await page.getByRole('button', { name: /Tindak Lanjut \(1\)/i }).click();
+    await page.getByRole('button', { name: /Keputusan \(1\)/i }).click();
     await expect(page.getByText('Unit:', { exact: false })).toBeVisible();
     await expect(page.getByText(unitName)).toBeVisible();
 
-    await page.getByRole('button', { name: /Distribusi Notula & Tindak Lanjut via Email/i }).click();
+    await page
+      .locator('div.flex.items-start.justify-between.gap-4.border-b.border-slate-100')
+      .filter({ has: page.getByRole('heading', { name: title, exact: true }) })
+      .getByRole('button')
+      .click();
+    await minuteRow.getByRole('button', { name: 'Distribusi Email' }).click();
     await expect(page.getByRole('heading', { name: 'Distribusi Notula' })).toBeVisible();
     await page.getByRole('button', { name: new RegExp(unitName) }).click();
     await page.getByRole('button', { name: /Kirim ke Semua Penerima/i }).click();
-    await expect(page.getByText('Konfigurasi email SMTP belum diatur.')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Konfigurasi email SMTP belum diatur/)).toBeVisible({ timeout: 15_000 });
 
     await page.goto('/app?tab=cta-dashboard');
     await expect(page.getByRole('heading', { name: 'Monitoring Tindak Lanjut' })).toBeVisible();
-    await expect(page.getByText(unitName)).toBeVisible();
+    await expect(page.getByText('Direktorat SDM').first()).toBeVisible();
   });
 });

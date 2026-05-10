@@ -62,7 +62,10 @@ function AccessNotice({
 export default function AppShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<AppTabId>('dashboard');
+  const tabFromUrlOnMount = searchParams?.get('tab');
+  const [activeTab, setActiveTab] = useState<AppTabId>(
+    tabFromUrlOnMount && isAppTabId(tabFromUrlOnMount) ? tabFromUrlOnMount : 'dashboard',
+  );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [me, setMe] = useState<MeResponse['data'] | null>(null);
   const [meLoading, setMeLoading] = useState(true);

@@ -7,8 +7,11 @@ import { requireSecretary } from '../../../lib/middleware/auth';
 import { extractDocumentText } from '../../../lib/extractDocumentText';
 import { reviewOfficialDocumentText } from '../../../lib/aiDocumentReview';
 import { downloadObject, removeObjects } from '../../../lib/objectStorage';
-import { loadAiCallConfigCandidates, loadDocumentReviewSystemPrompt } from '../../../lib/aiConfig';
-import type { AiCallConfig } from '../../../lib/aiClient';
+import {
+  type AiCallCandidateWithMeta,
+  loadAiCallConfigCandidatesWithMeta,
+  loadDocumentReviewSystemPrompt,
+} from '../../../lib/aiConfig';
 import { toUserFacingAiError } from '../../../lib/aiErrorMessage';
 import { createRateLimitMiddleware } from '../../../lib/middleware/rateLimit';
 import { validateUserScopedStoragePath } from '../../../lib/storageAccess';
@@ -20,29 +23,39 @@ const app = new Hono();
 async function reviewDocumentWithFallback(params: {
   text: string;
   systemPrompt: string;
-  cfgCandidates: AiCallConfig[];
-}) {
+  candidates: AiCallCandidateWithMeta[];
+}): Promise<{
+  review: Awaited<ReturnType<typeof reviewOfficialDocumentText>>;
+  analysisProvider: string;
+  analysisModel: string;
+}> {
   let lastError: unknown;
+  const cfgOnly = params.candidates.map((c) => c.cfg);
 
-  for (const cfg of params.cfgCandidates) {
+  for (const cand of params.candidates) {
     try {
-      return await reviewOfficialDocumentText({
+      const review = await reviewOfficialDocumentText({
         text: params.text,
         systemPrompt: params.systemPrompt,
-        cfg,
+        cfg: cand.cfg,
       });
+      return {
+        review,
+        analysisProvider: cand.provider,
+        analysisModel: cand.model,
+      };
     } catch (err) {
       lastError = err;
       console.warn('[documents/analyze] AI provider failed:', {
-        kind: cfg.kind,
-        baseUrl: cfg.baseUrl,
-        model: cfg.model,
+        kind: cand.cfg.kind,
+        baseUrl: cand.cfg.baseUrl,
+        model: cand.cfg.model,
         error: err instanceof Error ? err.message : String(err),
       });
     }
   }
 
-  throw new Error(toUserFacingAiError(lastError, params.cfgCandidates));
+  throw new Error(toUserFacingAiError(lastError, cfgOnly));
 }
 
 const createDocumentSchema = z.object({
@@ -215,6 +228,8 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       .set({
         status: 'processing',
         analysisError: null,
+        analysisProvider: null,
+        analysisModel: null,
         updatedAt: new Date(),
       })
       .where(and(eq(documents.id, id), eq(documents.userId, dbUser.id)));
@@ -232,20 +247,30 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
       throw new Error('Dokumen tidak mengandung teks yang bisa diekstrak (mungkin scan PDF tanpa OCR).');
     }
 
-    const cfgCandidates = await loadAiCallConfigCandidates(dbUser.id);
-    if (process.env.E2E_MOCK_AI === '1' && cfgCandidates.length === 0) {
-      cfgCandidates.push({
-        kind: 'openai_compatible',
-        apiKey: 'e2e-mock',
-        baseUrl: 'https://example.invalid',
-        model: 'e2e-mock',
-      });
+    let candidates = await loadAiCallConfigCandidatesWithMeta(dbUser.id);
+    if (process.env.E2E_MOCK_AI === '1' && candidates.length === 0) {
+      candidates = [
+        {
+          cfg: {
+            kind: 'openai_compatible',
+            apiKey: 'e2e-mock',
+            baseUrl: 'https://example.invalid',
+            model: 'e2e-mock',
+          },
+          provider: 'deepseek',
+          model: 'e2e-mock',
+        },
+      ];
     }
-    if (cfgCandidates.length === 0) {
+    if (candidates.length === 0) {
       throw new Error('Provider AI aktif belum diset. Buka Pengaturan untuk mengaktifkan provider.');
     }
     const systemPrompt = await loadDocumentReviewSystemPrompt(dbUser.id);
-    const review = await reviewDocumentWithFallback({ text, systemPrompt, cfgCandidates });
+    const { review, analysisProvider, analysisModel } = await reviewDocumentWithFallback({
+      text,
+      systemPrompt,
+      candidates,
+    });
 
     const typoCount = review.findings.filter((f) => f.kind === 'typo').length;
     const ambiguousCount = review.findings.filter((f) => f.kind === 'ambiguous').length;
@@ -258,6 +283,8 @@ app.post('/:id/analyze', createRateLimitMiddleware(5, 60000), async (c) => {
         ambiguousCount,
         findingsJson: review,
         analysisError: null,
+        analysisProvider,
+        analysisModel,
         analyzedAt: new Date(),
         updatedAt: new Date(),
       })

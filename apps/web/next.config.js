@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const isDevelopment = process.env.NODE_ENV === 'development';
 const configuredR2PublicHostname = process.env.R2_PUBLIC_BASE_URL
   ? (() => {
@@ -45,7 +47,24 @@ const academyPdfFrameCsp = [
 ].join('; ');
 
 const nextConfig = {
+  // Monorepo: hindari ambigu root saat file tracing (ada package-lock di `secretary-saas` dan `apps/web`).
+  outputFileTracingRoot: path.join(__dirname, '../..'),
+  // pdf-parse memuat pdf.js via path dinamis; bundling penuh sering memicu runtime error → respons HTML 500.
+  serverExternalPackages: ['pdf-parse'],
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
+  // Kurangi ChunkLoadError saat refresh dev (compilasi lambat / disk lambat).
+  ...(isDevelopment && {
+    onDemandEntries: {
+      maxInactiveAge: 120 * 1000,
+      pagesBufferLength: 10,
+    },
+  }),
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer && config.output) {
+      config.output.chunkLoadTimeout = 180000;
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {
@@ -63,17 +82,23 @@ const nextConfig = {
     ],
   },
   async headers() {
+    const baseSecurityHeaders = [
+      { key: 'Content-Security-Policy', value: contentSecurityPolicy },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+    ];
+    if (!isDevelopment) {
+      baseSecurityHeaders.push({
+        key: 'Strict-Transport-Security',
+        value: 'max-age=63072000; includeSubDomains; preload',
+      });
+    }
     return [
       {
         source: '/(.*)',
-        headers: [
-          { key: 'Content-Security-Policy', value: contentSecurityPolicy },
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-        ],
+        headers: baseSecurityHeaders,
       },
       {
         source: '/api/academy/lessons/:path*/asset',

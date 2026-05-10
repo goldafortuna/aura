@@ -1,3 +1,5 @@
+import { parsePdfBuffer } from '@/lib/pdfParseSafe';
+
 /**
  * applyFindingsToDocument
  *
@@ -336,8 +338,7 @@ async function applyToPdf(
   originalFilename: string,
   approvedCtas: ApprovedCta[],
 ): Promise<ApplyResult> {
-  const { default: pdfParse } = await import('pdf-parse');
-  const parsed = await pdfParse(Buffer.from(bytes));
+  const parsed = await parsePdfBuffer(Buffer.from(bytes));
   let text: string = parsed.text ?? '';
 
   for (const finding of findings) {

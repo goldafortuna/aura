@@ -40,6 +40,18 @@ function toAiCallConfig(row: {
 }
 
 export async function loadAiCallConfigCandidates(userId: string): Promise<AiCallConfig[]> {
+  const rows = await loadAiCallConfigCandidateRows(userId);
+  return rows.map((r) => r.cfg);
+}
+
+/** Kandidat AI beserta label provider/model untuk disimpan ke dokumen setelah review. */
+export type AiCallCandidateWithMeta = {
+  cfg: AiCallConfig;
+  provider: string;
+  model: string;
+};
+
+async function loadAiCallConfigCandidateRows(userId: string): Promise<AiCallCandidateWithMeta[]> {
   const [personalRows, globalRows] = await Promise.all([
     db
       .select()
@@ -64,7 +76,18 @@ export async function loadAiCallConfigCandidates(userId: string): Promise<AiCall
       ),
   ]);
 
-  return [...personalRows, ...globalRows].map(toAiCallConfig);
+  return [...personalRows, ...globalRows].map((row) => {
+    const cfg = toAiCallConfig(row);
+    return {
+      cfg,
+      provider: row.provider,
+      model: cfg.kind === 'anthropic' ? resolveAnthropicModelId(row.model) : row.model,
+    };
+  });
+}
+
+export async function loadAiCallConfigCandidatesWithMeta(userId: string): Promise<AiCallCandidateWithMeta[]> {
+  return loadAiCallConfigCandidateRows(userId);
 }
 
 export async function loadActiveAiCallConfig(userId: string): Promise<AiCallConfig | undefined> {

@@ -22,7 +22,7 @@ test.describe('Task Management E2E', () => {
     await modal.locator('select').nth(1).selectOption('high');
     await modal.locator('select').nth(2).selectOption('todo');
     await modal.locator('input[type="datetime-local"]').fill(dueDateTime);
-    await modal.getByRole('button', { name: 'Simpan dan Lanjutkan' }).click();
+    await modal.getByRole('button', { name: 'Simpan Tugas' }).click();
 
     await expect(page.getByText('Tugas berhasil ditambahkan.')).toBeVisible();
 
@@ -54,6 +54,7 @@ test.describe('Task Management E2E', () => {
     await expect(page.getByText(updatedTitle)).toBeVisible();
 
     await page.getByPlaceholder(/Cari tugas/i).clear();
+    await page.locator('select').first().selectOption('all');
     await page.getByRole('button', { name: 'Tambah Tugas', exact: true }).click();
     const travelModal = page.locator('div.fixed.inset-0.z-50').filter({
       has: page.getByRole('heading', { name: 'Tambah Tugas Baru' }),
@@ -62,25 +63,33 @@ test.describe('Task Management E2E', () => {
     await travelModal.getByPlaceholder(/Contoh: Pertanggungjawaban perjalanan dinas/i).fill(travelTitle);
     await travelModal.locator('select').nth(0).selectOption('travel-accountability');
     await travelModal.getByPlaceholder('keuangan@unit.ac.id').fill(`keuangan-${stamp}@example.com`);
-    await travelModal.getByRole('button', { name: 'Simpan dan Lanjutkan' }).click();
+    await travelModal.getByRole('button', { name: 'Simpan Tugas' }).click();
 
-    await expect(page.getByText('Lanjutkan upload dokumen checklist.')).toBeVisible();
-    await expect(travelModal.getByText('Surat Tugas')).toBeVisible();
-    await expect(travelModal.getByText('Boarding Pass')).toBeVisible();
+    await expect(
+      page.getByText('Tugas perjadin berhasil dibuat. Dokumen bisa dilengkapi nanti dari menu Kelola Dokumen.'),
+    ).toBeVisible();
 
-    const uploadInputs = travelModal.locator('input[type="file"]');
+    const travelCard = page.locator('.group.relative').filter({ hasText: travelTitle }).first();
+    await expect(travelCard).toBeVisible();
+    await travelCard.hover();
+    await travelCard.getByLabel('Kelola dokumen').click();
+
+    const docModal = page.locator('div.fixed.inset-0.z-50').filter({
+      has: page.getByRole('heading', { name: 'Kelola Dokumen Perjadin' }),
+    });
+    await expect(docModal).toBeVisible({ timeout: 15_000 });
+
     const samplePdf = {
       name: 'surat-tugas.pdf',
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF'),
     };
-    await uploadInputs.nth(0).setInputFiles(samplePdf);
-    await expect(page.getByText('Dokumen berhasil diunggah.')).toBeVisible();
+    await docModal.locator('input[type="file"]').first().setInputFiles(samplePdf);
+    await expect(page.getByText('Dokumen berhasil diunggah.')).toBeVisible({ timeout: 30_000 });
 
-    await expect(travelModal.getByText('1 dokumen terunggah')).toBeVisible();
-    await expect(travelModal.getByRole('button', { name: 'Kirim ke Keuangan' })).toBeDisabled();
+    await expect(docModal.getByRole('button', { name: 'Kirim ke Keuangan' })).toBeEnabled({ timeout: 15_000 });
 
-    await travelModal.getByRole('button', { name: 'Tutup' }).click();
+    await docModal.locator('div.flex.items-center.justify-between.border-b').getByRole('button').click();
 
     const filteredCard = page.locator('.group.relative').filter({ hasText: updatedTitle }).first();
     await filteredCard.getByLabel('Hapus tugas').click();

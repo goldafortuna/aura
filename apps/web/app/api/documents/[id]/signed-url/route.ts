@@ -8,15 +8,16 @@ import { requireSecretary } from '../../../../../lib/middleware/auth';
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const dbUser = await requireSecretary();
   if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [doc] = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.id, params.id), eq(documents.userId, dbUser.id)))
+    .where(and(eq(documents.id, id), eq(documents.userId, dbUser.id)))
     .limit(1);
 
   if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });

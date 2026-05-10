@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
+import { AppProviders } from './providers';
 
 export const metadata: Metadata = {
   title: 'Secretary Admin SaaS',
@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body>
-        <ClerkProvider>{children}</ClerkProvider>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

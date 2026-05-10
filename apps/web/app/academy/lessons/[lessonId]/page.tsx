@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Loader2 } from 'lucide-react';
 
 type LessonDetail = {
@@ -47,7 +47,8 @@ function getLessonKindLabel(lesson: LessonDetail) {
   return 'Lesson PDF';
 }
 
-export default function AcademyLessonPage({ params }: { params: { lessonId: string } }) {
+export default function AcademyLessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
+  const { lessonId } = use(params);
   const router = useRouter();
   const [lesson, setLesson] = useState<LessonDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,7 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/academy/lessons/${params.lessonId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/academy/lessons/${lessonId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Gagal memuat lesson (HTTP ${res.status})`);
         const json = await res.json();
         if (!cancelled) setLesson(json.data ?? null);
@@ -76,7 +77,7 @@ export default function AcademyLessonPage({ params }: { params: { lessonId: stri
     return () => {
       cancelled = true;
     };
-  }, [params.lessonId]);
+  }, [lessonId]);
 
   const markComplete = async () => {
     if (!lesson) return false;

@@ -15,6 +15,10 @@ export const documents = pgTable('documents', {
   ambiguousCount: integer('ambiguous_count').notNull().default(0),
   findingsJson: jsonb('findings_json').$type<unknown>(),
   analysisError: text('analysis_error'),
+  /** Provider AI yang dipakai saat review terakhir: deepseek | openai | anthropic */
+  analysisProvider: text('analysis_provider'),
+  /** ID model (mis. deepseek-chat, gpt-4o-mini) saat review terakhir */
+  analysisModel: text('analysis_model'),
   analysisBatchId: text('analysis_batch_id'),
   analyzedAt: timestamp('analyzed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

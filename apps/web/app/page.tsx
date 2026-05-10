@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { SignedIn, SignedOut } from '@clerk/nextjs';
+import { useAuth } from '@clerk/nextjs';
 import {
   FileText,
   ClipboardList,
@@ -91,7 +91,12 @@ const highlights = [
   },
 ];
 
+const masukButtonClass =
+  'rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-violet-200/50 transition hover:opacity-90';
+
 export default function Home() {
+  const { isSignedIn, isLoaded } = useAuth();
+
   return (
     <main className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-[#f8f7ff]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -109,31 +114,26 @@ export default function Home() {
         />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md shadow-violet-200">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-8 sm:py-5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md shadow-violet-200">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-gray-900">AURA-AI Powered Secretary Asistant</span>
+          <span className="truncate text-base font-bold tracking-tight text-gray-900 sm:text-lg">
+            AURA-AI Powered Secretary Asistant
+          </span>
         </div>
 
-        <nav className="flex items-center gap-3">
-          <SignedOut>
-            <Link
-              href="/sign-in"
-              className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-violet-200/50 transition hover:opacity-90"
-            >
+        <nav className="flex shrink-0 items-center gap-3">
+          {!isLoaded || !isSignedIn ? (
+            <Link href="/sign-in" className={masukButtonClass}>
               Masuk ke Sistem
             </Link>
-          </SignedOut>
-          <SignedIn>
-            <Link
-              href="/app"
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-violet-200/50 transition hover:opacity-90"
-            >
+          ) : (
+            <Link href="/app" className={`flex items-center gap-2 ${masukButtonClass}`}>
               Buka Dashboard <ArrowRight className="h-4 w-4" />
             </Link>
-          </SignedIn>
+          )}
         </nav>
       </header>
 
@@ -155,6 +155,18 @@ export default function Home() {
             Platform all-in-one untuk sekretaris pimpinan - review dokumen otomatis, notula cerdas,
             manajemen agenda, dan pengingat WhatsApp dalam satu sistem terintegrasi.
           </p>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {!isLoaded || !isSignedIn ? (
+              <Link href="/sign-in" className={`inline-flex items-center gap-2 ${masukButtonClass}`}>
+                Masuk ke Sistem <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : (
+              <Link href="/app" className={`inline-flex items-center gap-2 ${masukButtonClass}`}>
+                Buka Dashboard <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
         </div>
 
         <div className="mb-8 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">

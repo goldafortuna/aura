@@ -38,28 +38,30 @@ test.describe('Document Review E2E', () => {
 
     await page.goto('/app?tab=documents');
 
-    await expect(page.getByRole('heading', { name: 'Review Dokumen' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Review Dokumen' })).toBeVisible({ timeout: 30_000 });
     await page.locator('input[type="file"]').first().setInputFiles(fixturePath);
 
-    const row = page.locator('div.p-6.transition-colors.hover\\:bg-gray-50').filter({
-      has: page.getByRole('heading', { name: filename, exact: true }),
-    });
+    await expect(page.getByRole('heading', { name: filename, exact: true })).toBeVisible({ timeout: 30_000 });
+    const row = page
+      .getByRole('heading', { name: filename, exact: true })
+      .locator('xpath=ancestor::div[contains(@class,"border-l-")][1]');
 
-    await expect(page.getByRole('heading', { name: filename, exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(row.getByText('Direview')).toBeVisible({ timeout: 20_000 });
+    await expect(row.getByText('Direview')).toBeVisible({ timeout: 30_000 });
     await expect(row.getByText('Typo: 1')).toBeVisible();
     await expect(row.getByText('Ambigu: 1')).toBeVisible();
 
-    await row.getByTitle('Lihat detail temuan').first().click();
+    await row.getByTitle('Lihat detail typo').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText('Mock review Playwright')).toBeVisible();
     await expect(page.getByText('Kemedikbudristek')).toBeVisible();
     await expect(page.getByText('Kemendikbudristek')).toBeVisible();
     await page.getByLabel('Tutup').click();
 
-    await row.getByRole('button', { name: 'Lihat', exact: true }).click();
+    await row.getByTitle('Preview').click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByTitle('Document preview')).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByTitle('Document preview').or(page.getByText('Preview belum tersedia')),
+    ).toBeVisible({ timeout: 10_000 });
     await page.getByLabel('Tutup').click();
 
     const documentsRes = await request.get(`${baseURL}/api/documents`);

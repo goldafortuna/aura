@@ -306,6 +306,8 @@ router.post('/batches/:id/sync', async (c) => {
       ambiguousCount,
       findingsJson: { summary: typeof review.summary === 'string' ? review.summary : 'Review selesai.', findings },
       analysisError: null,
+      analysisProvider: 'anthropic',
+      analysisModel: cfg.model,
       analyzedAt: new Date(),
       updatedAt: new Date(),
     }).where(and(eq(documents.id, docId), eq(documents.userId, dbUser.id)));

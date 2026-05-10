@@ -12,6 +12,10 @@ const isPublicRoute = createRouteMatcher([
   '/api/google/calendar/oauth/callback',
 ]);
 
+function isApiRoute(req: NextRequest): boolean {
+  return req.nextUrl.pathname.startsWith('/api');
+}
+
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (isDevBypassAllowed()) {
     return NextResponse.next();
@@ -22,6 +26,11 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       '[DEV_BYPASS_AUTH] ignored by middleware because bypass is only allowed in local development.',
       getDevBypassWarningContext(),
     );
+  }
+
+  // Tanpa ini, Clerk protect() bisa rewrite /api → 404 HTML; handler Hono mengembalikan JSON + auth sendiri.
+  if (isApiRoute(req)) {
+    return NextResponse.next();
   }
 
   if (!isPublicRoute(req)) {
