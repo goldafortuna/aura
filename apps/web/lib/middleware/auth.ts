@@ -235,9 +235,48 @@ export async function requireApprovedUser(c?: Context) {
   return dbUser;
 }
 
+/** Super Admin boleh memakai fitur sekretaris (review dokumen, notula, dll.). */
+export function canUseSecretaryFeatures(user: Pick<DbUser, 'role' | 'rolesJson'> | null | undefined) {
+  return isSecretary(user) || isSuperAdmin(user);
+}
+
+/** Pesan 401 yang jelas saat akses fitur sekretaris ditolak. */
+export async function secretaryAccessDeniedMessage(): Promise<string> {
+  const { userId } = await auth();
+  if (!userId) {
+    return 'Sesi login tidak ditemukan. Silakan masuk kembali.';
+  }
+
+  const clerkUser = await currentUser();
+  if (!clerkUser) {
+    return 'Profil Clerk tidak dapat dimuat. Silakan refresh halaman atau login ulang.';
+  }
+
+  const dbUser = await requireDbUser();
+  if (!dbUser) {
+    return 'Akun belum terdaftar di database. Silakan logout lalu login ulang, atau hubungi admin.';
+  }
+
+  if (!isApprovedUser(dbUser)) {
+    if (dbUser.approvalStatus === 'pending') {
+      return 'Akun Anda menunggu persetujuan Super Admin sebelum dapat mengupload dokumen.';
+    }
+    if (dbUser.approvalStatus === 'rejected') {
+      return 'Akun Anda ditolak. Hubungi Super Admin untuk mengaktifkan kembali akses.';
+    }
+    return 'Akun Anda belum disetujui untuk menggunakan fitur ini.';
+  }
+
+  if (!canUseSecretaryFeatures(dbUser)) {
+    return 'Akun Anda tidak memiliki role Secretary. Hubungi Super Admin jika Anda seharusnya dapat mengakses fitur ini.';
+  }
+
+  return 'Akses ditolak. Silakan login ulang.';
+}
+
 export async function requireSecretary(c?: Context) {
   const dbUser = await requireApprovedUser(c);
-  if (!dbUser || !isSecretary(dbUser)) return null;
+  if (!dbUser || !canUseSecretaryFeatures(dbUser)) return null;
   return dbUser;
 }
 

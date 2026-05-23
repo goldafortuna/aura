@@ -12,6 +12,7 @@ import unitKerjaRoute from '../unit-kerja/handler';
 import emailConfigRoute from '../email-config/handler';
 import webdavConfigRoute from '../webdav-config/handler';
 import healthRoute from '../health/handler';
+import documentsUploadRoute from '../uploads/documents/handler';
 import meetingMinutesUploadRoute from '../uploads/meeting-minutes/handler';
 import academyRoute from '../academy/handler';
 import meRoute from '../me/handler';
@@ -20,6 +21,11 @@ import timeSavingsAnalyticsRoute from '../analytics/time-savings/handler';
 import adminTimeSavingsSettingsRoute from '../admin/time-savings-settings/handler';
 
 const app = new Hono().basePath('/api');
+
+app.onError((err, c) => {
+  console.error('[api] Unhandled error:', err);
+  return c.json({ error: 'Terjadi kesalahan server. Silakan coba lagi.' }, 500);
+});
 
 app.route('/documents', documentsRoute);
 app.route('/meeting-minutes', meetingMinutesRoute);
@@ -32,6 +38,7 @@ app.route('/unit-kerja', unitKerjaRoute);
 app.route('/email-config', emailConfigRoute);
 app.route('/webdav-config', webdavConfigRoute);
 app.route('/health', healthRoute);
+app.route('/uploads/documents', documentsUploadRoute);
 app.route('/uploads/meeting-minutes', meetingMinutesUploadRoute);
 app.route('/academy', academyRoute);
 app.route('/me', meRoute);

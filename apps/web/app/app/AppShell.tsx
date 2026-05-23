@@ -185,7 +185,10 @@ export default function AppShell() {
     );
   }
 
-  if (!me.roles.includes('secretary')) {
+  const canUseSecretaryFeatures =
+    me.roles.includes('secretary') || me.roles.includes('super_admin');
+
+  if (!canUseSecretaryFeatures) {
     return (
       <AccessNotice
         title="Tidak Ada Role Secretary"
