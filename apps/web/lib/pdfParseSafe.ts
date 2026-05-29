@@ -7,14 +7,23 @@ type PdfParseFn = (buf: Buffer, opts?: unknown) => Promise<{ text?: string }>;
 
 let cachedParse: PdfParseFn | null = null;
 
+function resolvePdfParseExport(mod: unknown): PdfParseFn | null {
+  if (typeof mod === 'function') return mod as PdfParseFn;
+  if (mod && typeof mod === 'object') {
+    const withDefault = mod as { default?: unknown };
+    if (typeof withDefault.default === 'function') return withDefault.default as PdfParseFn;
+  }
+  return null;
+}
+
 async function getPdfParse(): Promise<PdfParseFn> {
   if (cachedParse) return cachedParse;
-  const mod = (await import('./pdf-parse-loader.cjs')) as { default?: unknown };
-  const candidate = mod.default;
-  if (typeof candidate !== 'function') {
+  const mod = await import('./pdf-parse-loader.cjs');
+  const candidate = resolvePdfParseExport(mod);
+  if (!candidate) {
     throw new Error('pdf-parse-loader.cjs tidak mengekspor fungsi parse PDF.');
   }
-  cachedParse = candidate as PdfParseFn;
+  cachedParse = candidate;
   return cachedParse;
 }
 
