@@ -46,11 +46,20 @@ const academyPdfFrameCsp = [
   "object-src 'none'",
 ].join('; ');
 
+// pdf-parse + pdf.js (path dinamis) — harus ikut file tracing Vercel saat di-externalize.
+const pdfParseTracingIncludes = [
+  './apps/web/node_modules/pdf-parse/**',
+  './node_modules/pdf-parse/**',
+];
+
 const nextConfig = {
   // Monorepo: hindari ambigu root saat file tracing (ada package-lock di `secretary-saas` dan `apps/web`).
   outputFileTracingRoot: path.join(__dirname, '../..'),
   // pdf-parse memuat pdf.js via path dinamis; bundling penuh sering memicu runtime error → respons HTML 500.
   serverExternalPackages: ['pdf-parse'],
+  outputFileTracingIncludes: {
+    '/api/**': pdfParseTracingIncludes,
+  },
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   // Kurangi ChunkLoadError saat refresh dev (compilasi lambat / disk lambat).
   ...(isDevelopment && {
