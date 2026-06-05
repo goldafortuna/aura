@@ -10,3 +10,4 @@ export * from './unitKerja';
 export * from './academy';
 export * from './timeSavings';
 export * from './webdav';
+export * from './perjadinGuidelines';

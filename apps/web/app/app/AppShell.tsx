@@ -13,6 +13,7 @@ import { WhatsAppReminders } from '../../pages/WhatsAppReminders';
 import { TaskManagement } from '../../pages/TaskManagement';
 import CtaDashboard from '../../components/CtaDashboard';
 import AcademyHome from '../../components/AcademyHome';
+import PedomanPerjadinPlaybook from '../../components/PedomanPerjadinPlaybook';
 
 const APP_TAB_IDS = [
   'dashboard',
@@ -23,6 +24,7 @@ const APP_TAB_IDS = [
   'tasks',
   'cta-dashboard',
   'academy',
+  'pedoman-perjadin',
 ] as const;
 type AppTabId = (typeof APP_TAB_IDS)[number];
 
@@ -145,6 +147,18 @@ export default function AppShell() {
         );
       case 'academy':
         return <AcademyHome />;
+      case 'pedoman-perjadin':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Pedoman Perjadin</h1>
+              <p className="text-gray-500">
+                Standar biaya universitas dan ketentuan perjalanan dinas pimpinan — dalam format playbook yang mudah dipelajari.
+              </p>
+            </div>
+            <PedomanPerjadinPlaybook />
+          </div>
+        );
       default:
         return <Dashboard />;
     }

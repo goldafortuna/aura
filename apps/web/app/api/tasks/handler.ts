@@ -26,6 +26,7 @@ const TRAVEL_CHECKLIST_ITEMS = [
   { label: 'Boarding Pass', isRequired: false },
   { label: 'SPPD/Laporan Perjalanan Dinas', isRequired: false },
   { label: 'Voucher/Invoice Hotel', isRequired: false },
+  { label: 'Surat Keterangan', isRequired: false },
 ] as const;
 
 type TaskStatusValue = 'todo' | 'in-progress' | 'completed';
@@ -161,6 +162,14 @@ function classifyChecklistLabel(params: { filename: string; text?: string | null
     hasAll('hotel', 'invoice')
   ) {
     return 'Voucher/Invoice Hotel';
+  }
+
+  if (
+    hasAny('surat keterangan', 'surat ket', 'sket', 'letter of explanation', 'certificate of explanation') ||
+    hasAll('surat', 'keterangan') ||
+    hasAny('keterangan pembatalan', 'keterangan tidak tersedia', 'keterangan tiket')
+  ) {
+    return 'Surat Keterangan';
   }
 
   return null;

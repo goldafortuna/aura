@@ -712,7 +712,7 @@ function TaskModal({
                     </div>
                     <div className="mt-4 rounded-xl border border-dashed border-sky-200 bg-white/70 px-4 py-4 text-sm text-sky-800">
                       Checklist default akan dibuat untuk Surat Tugas, E-Ticket, Invoice, Boarding Pass, SPPD/Laporan
-                      Perjalanan Dinas, dan Voucher/Invoice Hotel. Semua kategori bersifat opsional, setiap kategori
+                      Perjalanan Dinas, Voucher/Invoice Hotel, dan Surat Keterangan. Semua kategori bersifat opsional, setiap kategori
                       dapat diisi lebih dari satu dokumen, dan upload bisa dilakukan bertahap dari detail task.
                     </div>
                     {mode === 'edit' && task ? (
@@ -1282,11 +1282,11 @@ function DocumentManagerModal({
                     Versi saat ini mencoba membaca isi PDF/DOC/DOCX terlebih dahulu. Untuk file gambar PNG/JPG/JPEG
                     dan PDF scan yang tidak mengandung teks bawaan, sistem juga akan mencoba OCR lewat provider AI
                     yang aktif. Jika OCR gagal atau provider belum mendukung vision/file input, sistem akan fallback ke
-                    heuristik nama file. Dokumen opsional seperti SPPD/Laporan Perjalanan Dinas dan Voucher/Invoice
-                    Hotel tidak wajib ada, tetapi bisa diunggah bila memang diperlukan. Upload manual per item tetap
+                    heuristik nama file. Dokumen opsional seperti SPPD/Laporan Perjalanan Dinas, Voucher/Invoice
+                    Hotel, dan Surat Keterangan tidak wajib ada, tetapi bisa diunggah bila memang diperlukan. Upload manual per item tetap
                     disediakan untuk koreksi akhir. Contoh yang mudah dikenali:
                     <br />
-                    `surat-tugas.pdf`, `eticket-jakarta.pdf`, `invoice-hotel.pdf`, `boarding-pass.jpg`, `sppd.pdf`, `voucher-hotel.pdf`.
+                    `surat-tugas.pdf`, `eticket-jakarta.pdf`, `invoice-hotel.pdf`, `boarding-pass.jpg`, `sppd.pdf`, `voucher-hotel.pdf`, `surat-keterangan.pdf`.
                   </p>
                 </div>
               </div>

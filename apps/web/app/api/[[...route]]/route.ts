@@ -19,6 +19,7 @@ import meRoute from '../me/handler';
 import adminUsersRoute from '../admin/users/handler';
 import timeSavingsAnalyticsRoute from '../analytics/time-savings/handler';
 import adminTimeSavingsSettingsRoute from '../admin/time-savings-settings/handler';
+import perjadinGuidelinesRoute from '../perjadin-guidelines/handler';
 
 const app = new Hono().basePath('/api');
 
@@ -45,6 +46,7 @@ app.route('/me', meRoute);
 app.route('/admin/users', adminUsersRoute);
 app.route('/analytics/time-savings', timeSavingsAnalyticsRoute);
 app.route('/admin/time-savings-settings', adminTimeSavingsSettingsRoute);
+app.route('/perjadin-guidelines', perjadinGuidelinesRoute);
 
 export const GET = handle(app);
 export const POST = handle(app);

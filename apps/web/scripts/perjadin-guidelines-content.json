@@ -1,0 +1,678 @@
+{
+  "meta": {
+    "title": "Pedoman Perjalanan Dinas Pimpinan",
+    "subtitle": "Standar Biaya Universitas (SBU) dan ketentuan perjadin dalam negeri serta luar negeri untuk mendukung perencanaan, persetujuan, dan pertanggungjawaban perjalanan dinas pimpinan.",
+    "version": "SBU Universitas — OCR terstruktur (2026-06-04)",
+    "effectiveDate": "Perbarui melalui seed saat regulasi/SBU terbaru diterbitkan",
+    "sourceNotes": [
+      "Acuan nasional: PMK tentang Standar Biaya Masukan (SBM/SBU) dan ketentuan perjalanan dinas ASN.",
+      "Rincian nominal SBU mengacu pada tabel resmi universitas pada lampiran visual di bawah.",
+      "Surat edaran internal universitas dapat menetapkan efisiensi tambahan di atas SBU."
+    ],
+    "efficiencyPolicy": {
+      "domestic": "Perjadin dalam negeri dimaksimalkan efisiensi hingga 50% dari standar yang berlaku, dengan pembatasan dan/atau pelaksanaan perjadin secara selektif.",
+      "international": "Perjadin luar negeri efisiensi hingga 70% dari standar yang berlaku, dengan pembatasan dan pelaksanaan yang selektif."
+    }
+  },
+  "quickLinks": [
+    {
+      "label": "Ketentuan umum",
+      "chapterId": "ketentuan-umum"
+    },
+    {
+      "label": "SBU dalam negeri",
+      "chapterId": "sbu-dalam-negeri",
+      "sectionId": "sbu-dn-1"
+    },
+    {
+      "label": "SBU luar negeri",
+      "chapterId": "sbu-luar-negeri",
+      "sectionId": "pdl-1"
+    },
+    {
+      "label": "Checklist sekretaris",
+      "chapterId": "checklist-sekretaris"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "pengantar",
+      "title": "Pengantar",
+      "description": "Tujuan pedoman dan cara membacanya di AURA.",
+      "badge": "Mulai di sini",
+      "gradient": "from-indigo-500 to-sky-500",
+      "sections": [
+        {
+          "id": "tujuan",
+          "heading": "Untuk siapa pedoman ini?",
+          "body": "Pedoman ini disusun untuk mendukung sekretaris pimpinan dan unit pendukung dalam memahami ketentuan perjalanan dinas (perjadin) pimpinan—mulai dari perencanaan, persetujuan, hingga pelaporan—dengan acuan Standar Biaya Universitas (SBU) yang berlaku.",
+          "points": [
+            "Memudahkan pengecekan cepat komponen biaya yang boleh diajukan (uang harian, penginapan, transport, representasi, dan komponen PDLN).",
+            "Menjadi referensi saat menyusun surat tugas, estimasi anggaran, dan dokumen pertanggungjawaban.",
+            "Konten disimpan terstruktur di database sehingga dapat diperbarui ketika SBU atau surat edaran baru diterbitkan."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        },
+        {
+          "id": "cara-baca",
+          "heading": "Cara menggunakan playbook ini",
+          "body": "Gunakan navigasi bab di sisi kiri (desktop) atau daftar isi di atas (mobile). Setiap bab SBU dilengkapi gambar tabel resmi—perbesar gambar jika perlu membaca angka detail per provinsi, golongan, atau kelompok negara.",
+          "callout": {
+            "type": "tip",
+            "title": "Tips sekretaris",
+            "body": "Saat ada perbedaan antara catatan lisan rapat dan SBU tertulis, utamakan dokumen resmi terbaru (SBU/Surat Edaran) dan konfirmasikan ke unit keuangan atau bagian umum."
+          }
+        }
+      ]
+    },
+    {
+      "id": "ketentuan-umum",
+      "title": "Ketentuan Umum Perjadin",
+      "description": "Prinsip, efisiensi, dan dokumen pendukung.",
+      "badge": "Kebijakan",
+      "gradient": "from-amber-500 to-orange-500",
+      "sections": [
+        {
+          "id": "prinsip",
+          "heading": "Prinsip pelaksanaan perjadin pimpinan",
+          "points": [
+            "Perjadin dilaksanakan apabila tidak dapat dihindari dan mendukung tugas fungsi pimpinan.",
+            "Prioritaskan efisiensi anggaran: seleksi tujuan, durasi, dan jumlah peserta.",
+            "Seluruh komponen biaya harus dapat dipertanggungjawabkan dengan bukti yang sah dan sesuai SBU.",
+            "Penginapan dibayarkan at cost (sesuai bukti riil) dengan batas maksimal sesuai SBU per wilayah dan eselon/golongan."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        },
+        {
+          "id": "efisiensi",
+          "heading": "Kebijakan efisiensi (surat edaran internal)",
+          "body": "Di luar batas SBU nasional/universitas, organisasi dapat menerapkan kebijakan efisiensi tambahan melalui surat edaran:",
+          "callout": {
+            "type": "warning",
+            "title": "Perhatian",
+            "body": "Perjadin dalam negeri: efisiensi hingga 50%. Perjadin luar negeri: efisiensi hingga 70%. Lakukan perjadin secara selektif dan pertimbangkan alternatif daring/hybrid bila memungkinkan."
+          }
+        },
+        {
+          "id": "dokumen",
+          "heading": "Dokumen yang biasanya disiapkan",
+          "points": [
+            "Surat tugas / surat perintah perjadin yang ditandatangani pejabat berwenang.",
+            "Estimasi biaya per komponen SBU (uang harian, penginapan, transport, tiket, visa/asuransi untuk PDLN).",
+            "Laporan hasil perjadin dan bukti pertanggungjawaban (boarding pass, kwitansi hotel, notulen/undangan kegiatan).",
+            "Untuk luar negeri: paspor, visa, asuransi perjalanan, dan konversi kurs sesuai ketentuan keuangan."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        }
+      ]
+    },
+    {
+      "id": "sbu-dalam-negeri",
+      "title": "SBU Perjadin Dalam Negeri",
+      "description": "Tabel standar biaya perjalanan dinas dalam negeri.",
+      "badge": "SBU DN",
+      "gradient": "from-emerald-500 to-teal-500",
+      "sections": [
+        {
+          "id": "ringkasan-dn",
+          "heading": "Komponen biaya dalam negeri",
+          "body": "SBU perjadin dalam negeri umumnya mencakup uang harian (lumpsum per provinsi/kelas lokasi), uang representasi bagi pejabat tertentu, biaya penginapan (batas maksimal per eselon/golongan dan wilayah), serta komponen transport/tiket sesuai ketentuan yang berlaku.",
+          "callout": {
+            "type": "info",
+            "title": "Acuan nasional",
+            "body": "Besaran uang harian dan representasi mengacu pada Standar Biaya Masukan (SBM) pemerintah, misalnya PMK No. 49 Tahun 2023 untuk tahun anggaran berjalan. Universitas menyesuaikan dalam SBU internal."
+          }
+        },
+        {
+          "id": "sbu-dn-1",
+          "heading": "Tabel SBU — bagian 1",
+          "body": "Ringkasan tarif perjadin dari tabel SBU (OCR). Untuk angka pasti per zona/kota, lihat juga lampiran gambar di bawah.",
+          "figure": {
+            "src": "/pedoman-perjadin/SBU%20Perjadin1.png",
+            "alt": "Tabel SBU perjadin dalam negeri bagian 1",
+            "caption": "SBU Perjadin Dalam Negeri — lampiran 1. Perbarui seed JSON jika tabel resmi diganti."
+          },
+          "ocrText": "| PERJALANANDINASDALAMDANLUARNEGERL ~~ |\nEE\n| fmm] regecsmwan | PasuTiket | Uang Harian Orangery [Meg nema] ana Maia | Keterangan |\nme | Ie ET = I\nUtama dan Madya\nJabatan Manajerial Jenjang EKseRutil\nI amar” ET TY RTT ME\nKetua Majelis Wali Amanat, Ketua Senat 680.000) 2.500.000] 1.222.000]\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 2.600.000]\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 580.000 1.500.000] 1.222.000]\nGuru Besar, Anggota Dewan Guru Besar,\n(Anggota Senat Akademik, Komite Audit\nkumen ini telah ditandatangani secara elektronik menggunakan sertifikat elektronik yang diterbitkan oleh BSTE.\n———e——uu zr e——————————\nhalaman 8 dari 56\n[mn | I NO Ni INR\nJabatan Non-Manajerial\nJabatan Manajerial Jenjang Eksekutif.\nMONa ET RT I\new] IT ET MA ME\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 570.000) 2.500.000| 886.000)|\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 2.600.000|\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 470.000| 1.500.000| 886.000)|\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nMEN IE NO Ni EN\nJabatan Non-Manajerial\nJabatan Manajerial Jenjang Eksekutif\nI ER Er i asa) I ETT RTT\" MEN\nI ds I IT ame\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 630.000) 2.500.000 1.222.000}\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 4.400.000|\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 530.000) 1.500.000| 1.222.000|\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nI Ea” IE NO Ni ME\nJabatan Non-Manajerial\nJabatan Manajerial Jenjang Eksekutif\nSe wm] IT IT EY ER\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 580.000) 2.500.000 1.340.000}\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 4.475.000]\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 480.000] 1.500.000 1.340.000\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nI Eee IE Nc Nii ME\nJabatan Non- Manajerial!\nJabatan Manajerial Jenjang Eksekutif\nI CR da I, RPT, ETT. ER\nI ak IT RT YE MEN\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 560.000) 2.500.000 1.130.000}\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 3.850.000|\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 460.000| 1.800.000| 1.130.000|\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nI Ae dati I A Ni A\nJabatan Non-Manajerial",
+          "table": {
+            "caption": "Tarif SBU hasil OCR — verifikasi dengan dokumen resmi",
+            "headers": [
+              "Blok / Kategori",
+              "Jabatan",
+              "Tiket",
+              "Uang Harian",
+              "Penginapan",
+              "Representasi"
+            ],
+            "rows": [
+              [
+                "Jabatan Manajerial Jenjang EKseRutil · Utama dan Madya",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "680.000",
+                "2.500.000",
+                "1.222.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang EKseRutil · Utama dan Madya",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "580.000",
+                "1.500.000",
+                "1.222.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif. · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "570.000",
+                "2.500.000",
+                "886.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif. · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "470.000",
+                "1.500.000",
+                "886.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "630.000",
+                "2.500.000",
+                "1.222.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "530.000",
+                "1.500.000",
+                "1.222.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "580.000",
+                "2.500.000",
+                "1.340.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "480.000",
+                "1.500.000",
+                "1.340.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "560.000",
+                "2.500.000",
+                "1.130.000",
+                "—"
+              ],
+              [
+                "Jabatan Manajerial Jenjang Eksekutif · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "460.000",
+                "1.800.000",
+                "1.130.000",
+                "—"
+              ]
+            ]
+          },
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          },
+          "sbuTarifRows": [
+            {
+              "blok": "Jabatan Manajerial Jenjang EKseRutil",
+              "kategoriJabatan": "Utama dan Madya",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "680.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.222.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang EKseRutil",
+              "kategoriJabatan": "Utama dan Madya",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "580.000",
+              "uangHarian": "1.500.000",
+              "penginapan": "1.222.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif.",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "570.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "886.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif.",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "470.000",
+              "uangHarian": "1.500.000",
+              "penginapan": "886.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "630.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.222.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "530.000",
+              "uangHarian": "1.500.000",
+              "penginapan": "1.222.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "580.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.340.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "480.000",
+              "uangHarian": "1.500.000",
+              "penginapan": "1.340.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "560.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.130.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Manajerial Jenjang Eksekutif",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "460.000",
+              "uangHarian": "1.800.000",
+              "penginapan": "1.130.000",
+              "representasi": ""
+            }
+          ]
+        },
+        {
+          "id": "sbu-dn-2",
+          "heading": "Tabel SBU — bagian 2",
+          "body": "Ringkasan tarif perjadin dari tabel SBU (OCR). Untuk angka pasti per zona/kota, lihat juga lampiran gambar di bawah.",
+          "figure": {
+            "src": "/pedoman-perjadin/SBU%20Perjadin2.png",
+            "alt": "Tabel SBU perjadin dalam negeri bagian 2",
+            "caption": "SBU Perjadin Dalam Negeri — lampiran 2."
+          },
+          "ocrText": "TEE IE cs Hci MEN\nUtama dan Madya\nDADI Aa EA EN\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 530.000| 2.500.000 1.260.000\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 5.400.000\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 430.000] 1.800.000 1.260.000\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nI le al Ie I\nJabatan Non-Manajeriall\nI i IE cs Hs\nUtama dan Madya\nCE — Ie I\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 580.000| 2.500.000| 1.276.000\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 6.500.000\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 480.000] 1.800.000 1.276.000\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nIl Fe a Ie Ic  —\nJabatan Non-Manajeriall\nI di Ie cs cs\nUtama dan Madya\nBBI —— Ie I sd\nPratama\nKetua Majelis Wali Amanat, Ketua Senat 730.000| 2.500.000 1.658.000\nAkademik, Sekretaris Majelis Wali Amanat,\nSekretaris Senat Akademik, Anggota Majelis 8.000.000\nWali Amanat\nKetua Dewan Guru Besar, Sekretaris Dewan 638.000| 1.800.000 1.658.000\nGuru Besar, Anggota Dewan Guru Besar,\nAnggota Senat Akademik, Komite Audit\nIl erie an I I I BEN\nJabatan Non-Manajerial\n |Keerangan: 0000000000000 |\nKlasifikasi Kategori Zona Tujuan adalah penggolongan kategori kota tujuan yang didasarkan pada rata-rata indeks kebutuhan biaya hidup dan/atau indeks kemahalan umum kota\nitu.\nPenggolongan kategori meliputi:\n“ Zona 1 yaitu kota di Banten, Jawa Barat, DKI Jakarta.\n“ Zona 2 yaitu kota di Jawa Tengah, D.I. Yogyakarta, Jawa Timur.\n|“ Zona 3 yaitu kota di Bali, Nusa Tenggara Barat, Kalimantan Selatan, Kalimantan Timur, Kalimantan Barat, Kalimantan Tengah, Kalimantan Utara.\n* Zona 4 yaitu kota di Sulawesi Selatan, Sulawesi Tengah, Sulawesi Tenggara, Sulawesi Barat, Sulawesi Utara, Gorontalo, Nusa Tenggara Timur.\n“ Zona 5 yaitu kota di Lampung, Bengkulu, Bangka Belitung, Sumatera Selatan.\n|“ Zona 6 yaitu kota di Riau, Kepulauan Riau, Jambi, Sumatera Barat, Sumatera Utara, Aceh.\n“Zona 7 yaitu kota di Maluku, Maluku Utara.\n“ Zona 8 yaitu kota di Papua, Papua Barat, Papua Barat Daya, Papua Tengah, Papua Selatan, Papua Pegunungan.",
+          "table": {
+            "caption": "Tarif SBU hasil OCR — verifikasi dengan dokumen resmi",
+            "headers": [
+              "Blok / Kategori",
+              "Jabatan",
+              "Tiket",
+              "Uang Harian",
+              "Penginapan",
+              "Representasi"
+            ],
+            "rows": [
+              [
+                "TEE IE cs Hci MEN · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "530.000",
+                "2.500.000",
+                "1.260.000",
+                "—"
+              ],
+              [
+                "TEE IE cs Hci MEN · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "430.000",
+                "1.800.000",
+                "1.260.000",
+                "—"
+              ],
+              [
+                "Jabatan Non-Manajeriall · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "580.000",
+                "2.500.000",
+                "1.276.000",
+                "—"
+              ],
+              [
+                "Jabatan Non-Manajeriall · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "480.000",
+                "1.800.000",
+                "1.276.000",
+                "—"
+              ],
+              [
+                "Jabatan Non-Manajeriall · Pratama",
+                "Ketua Majelis Wali Amanat, Ketua Senat",
+                "730.000",
+                "2.500.000",
+                "1.658.000",
+                "—"
+              ],
+              [
+                "Jabatan Non-Manajeriall · Pratama",
+                "Ketua Dewan Guru Besar, Sekretaris Dewan",
+                "638.000",
+                "1.800.000",
+                "1.658.000",
+                "—"
+              ]
+            ]
+          },
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          },
+          "sbuTarifRows": [
+            {
+              "blok": "TEE IE cs Hci MEN",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "530.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.260.000",
+              "representasi": ""
+            },
+            {
+              "blok": "TEE IE cs Hci MEN",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "430.000",
+              "uangHarian": "1.800.000",
+              "penginapan": "1.260.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Non-Manajeriall",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "580.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.276.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Non-Manajeriall",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "480.000",
+              "uangHarian": "1.800.000",
+              "penginapan": "1.276.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Non-Manajeriall",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Majelis Wali Amanat, Ketua Senat",
+              "tiketPesawat": "730.000",
+              "uangHarian": "2.500.000",
+              "penginapan": "1.658.000",
+              "representasi": ""
+            },
+            {
+              "blok": "Jabatan Non-Manajeriall",
+              "kategoriJabatan": "Pratama",
+              "jabatan": "Ketua Dewan Guru Besar, Sekretaris Dewan",
+              "tiketPesawat": "638.000",
+              "uangHarian": "1.800.000",
+              "penginapan": "1.658.000",
+              "representasi": ""
+            }
+          ]
+        },
+        {
+          "id": "sbu-dn-3",
+          "heading": "Penjelasan perjadin dalam negeri",
+          "figure": {
+            "src": "/pedoman-perjadin/SBU%20Perjadin3.png",
+            "alt": "Tabel SBU perjadin dalam negeri bagian 3",
+            "caption": "SBU Perjadin Dalam Negeri — lampiran 3."
+          },
+          "ocrText": "[ |PENJELASAN PERJALANAN DINAS DALAM NEGERI ~~]\n[| 1 JSemua komponen perjalanan dinas tidak dipotong PPh 21.0 |\n\n2 |Perjalanan Dinas Dalam Negeri meliputi semua penugasan institusional ke luar D.I. Yogyakarta atau DKI Jakarta bagi pejabat/staf di Kampus Jakarta, yang meliputi, tetapi\ntidak terbatas pada tugas menjalin kerja sama, pelaksanaan tugas terkait dengan Kementerian dan/atau unit pemerintah lainnya, menghadiri undangan institusional,\nmengikuti pendidikan dan pelatihan, penugasan mengajar, penugasan penelitian, penugasan audit dan monitoring, konferensi dalam negeri, dan penugasan lainnya.\n\n3 Ja. Dalam upaya mendukung efektivitas dan efisiensi pelaksanaan tugas, transportasi perjalanan dinas sebaiknya dengan menggunakan moda transportasi udara (pesawat)\nkelas ekonomi, moda transportasi darat (kereta api) maksimal kelas eksekutif. Apabila moda transportasi pesawat dan kereta api tidak tersedia, perjalanan dinas dapat\ndilakukan dengan menggunakan moda transportasi darat dan/atau moda transportasi air yang aman dan nyaman.\n\nb. Penugasan yang sifatnya mendadak yang menyebabkan ketidaktersediaan tiket sesuai kelas sehingga harga tiket melebihi tarif maksimal diwajibkan melampirkan surat\nketerangan.\n\na. Biaya tiket pesawat (moda transportasi udara) dan tiket dan/atau sewa kendaraan darat/air (moda transportasi darat/air) dari D.I. Yogyakarta atau DKI Jakarta ke daerah\n(kota) tujuan pergi-pulang menjadi beban anggaran unit, fakultas, sekolah, atau kantor pusat sebesar biaya yang sesungguhnya terjadi (at cost) dengan jumlah maksimal\nsebesar pagu yang telah ditetapkan.\n\nb. Tiket perjalanan dinas khusus mengundang tamu dari luar kota mengacu pada tarif zona kota asal.\n\nc. Tiket perjalanan dinas khusus dengan tujuan DKI Jakarta dapat lebih tinggi sebesar 40% (empat puluh persen) dari tarif.\n\na. Uang Harian perjalanan dinas dalam negeri dapat digunakan untuk kebutuhan makan dan transport lokal dalam kota tujuan.\n\nb. Uang Harian diberikan secara lumpsum dengan jangka waktu paling lama 6 (enam) hari kecuali untuk kegiatan penelitian per perjalanan dinas dan dihitung berdasarkan\njumlah hari perjalanan dinas sejak berangkat dari tempat asal sampai dengan kembali lagi ke tempat asal dikalikan tarif uang harian yang sesuai kota tujuan perjalanan\ndinas. Kegiatan KKN di daerah pedalaman uang harian diberikan secara lumpsum dengan jangka waktu paling lama 8 (delapan) hari.\n\nc. Apabila perjalanan dinas dilakukan dengan tujuan mengikuti kegiatan pendidikan dan/atau pelatihan yang diselenggarakan oleh pihak lain secara institusional, maka uang|\nharian dapat diberikan:\n\n1. paling banyak 50% (lima puluh persen) jika seluruh penginapan dan akomodasi selama kegiatan ditanggung oleh penyelenggara: atau\n\n2. paling banyak 75% (tujuh puluh lima persen) jika penginapan tidak ditanggung oleh penyelenggara dari jumlah perhitungan uang harian.\n\nd. Apabila perjalanan dinas dilakukan dengan tujuan mengikuti kegiatan pendidikan dan/atau pelatihan selama lebih dari 6 (enam) hari, yang diselenggarakan oleh pihak lain\nsecara institusional dan pembiayaannya tidak ditanggung oleh pihak penyelenggara atau pihak sponsor, maka dapat diberikan Uang Harian paling banyak 40% (empat puluh\npersen) dari tarif, sampai selesai acara.\n\ne. Apabila uang harian sudah diberikan oleh pihak penyelenggara dengan nilai lebih rendah dari Standar Biaya Universitas, maka dapat diberikan selisih kekurangannya dari\nnilai batas Standar Biaya Universitas.\n\nBiaya penginapan atau hotel di kota tujuan menjadi beban anggaran unit, fakultas, sekolah, atau kantor pusat sebesar biaya yang sesungguhnya terjadi (at cost) dengan\njumlah maksimal sebesar pagu yang telah ditetapkan. Dalam hal pihak yang melakukan perjalanan dinas menginap di tempat yang tidak ada biayanya (gratis), seperti di\nrumah saudara atau di wisma milik Universitas, maka kepada yang bersangkutan dapat diberi biaya penginapan maksimal sebesar 30% (tiga puluh persen) dari pagu yang\ntelah ditetapkan dan sebesar 60% (enam puluh persen) untuk kegiatan KKN.\n\n7 JUang transport diberikan secara lumpsum per kegiatan perjalanan dinas dan digunakan untuk membiayai transportasi dari rumah ke bandara/stasiun dan dari\nbandara/stasiun ke tempat tujuan, dan sebaliknya. Apabila:\n\na. kegiatan perjalanan dinas ke lebih dari satu tujuan, maka biaya transportasi dari tujuan pertama ke tujuan kedua dan seterusnya akan diperhitungkan secara at cost\nberdasarkan bukti pengeluaran.\nb. dalam hal perjalanan dinas yang tidak melewati bandara/stasiun dan menggunakan kendaraan pribadi maka uang transport dapat diberikan sesuai tarif di atas, apabila\nperjalanan dinas menggunakan kendaraan dinas, maka tidak berhak mendapatkan uang transport.\n[| 8 [Narasumber/Dosen/Peneliti/Praktisi/Tamu dapat diberikan salah satu antara honorarium atau uang harian. ————————\n[| 9 [Besaran komponen perjalanan dinas dalam negeri untuk pihak eksternal, disetarakan dengan tingkat jabatan di UGM. |\n\n10 |Dalam hal terjadi pembatalan pelaksanaan perjalanan dinas, biaya pembatalan dapat dibebankan pada anggaran unit kerja yang bersangkutan jika pembatalan itu dilakukan\noleh pemberi tugas dan/atau bersifat darurat dan/atau tak terduga dengan surat pembatalan yang disetujui pemberi tugas.\n\n11 JUntuk perjalanan dinas yang dilaksanakan ke 3 (tiga) tempat tujuan atau lebih dalam satu kota dan/atau dalam 1 (satu) hari, dapat diberikan Uang Transport paling banyak\n1,5 (satu koma lima) dari tarif yang ada.\n\n[| 12 Pelaksanaan dan Pertanggungjawaban Perjalanan Dinas Dalam Negeri |\n[| | A [Perjalanan dinas mengikuti konferensi /seminar/ workshop / simposium dan sejenisnya dalam negeri |\n1 JPerjalanan dinas konferensi dalam negeri hanya dapat diberikan pada dosen tetap yang mempresentasikan makalah hasil penelitiannya (penulis utama atau penulis\npendamping) di Konferensi Dalam Negeri terindeks SCOPUS atau dikategorikan bereputasi sesuai keputusan Departemen/Fakultas/Sekolah, dengan bukti surat (email\n...@ugm.ac.id) penerimaan makalah oleh panitia konferensi dan pada makalah disebutkan bahwa pemakalah adalah dosen UGM.\n2 (Jumlah hari perjalanan dinas konferensi/seminar/ workshop /simposium dan sejenisnya dalam negeri maksimal adalah jumlah hari konferensi plus 1 (satu) hari tetapi\ntidak boleh lebih dari 6 (enam) hari.\n3 |Biaya pendaftaran konferensi dan biaya tiket pesawat kelas ekonomi atau tiket transportasi darat dan/atau laut akan menjadi beban anggaran fakultas/sekolah atau\nUniversitas sebesar biaya yang sesungguhnya terjadi (at cost).",
+          "body": "Berikut 10 butir ketentuan hasil transkrip OCR. Verifikasi dengan PDF SBU resmi.",
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          },
+          "points": [
+            "1. Semua komponen perjalanan dinas tidak dipotong PPh 21.0 |",
+            "2. Perjalanan Dinas Dalam Negeri meliputi semua penugasan institusional ke luar D.I. Yogyakarta atau DKI Jakarta bagi pejabat/staf di Kampus Jakarta, yang meliputi, tetapi tidak terbatas pada tugas menjalin kerja sama, pelaksanaan tugas terkait dengan Kementerian dan/atau unit pemerintah lainnya, menghadiri undangan institusional, mengikuti pendidikan dan pelatihan, penugasan mengajar, penugasan penelitian, penugasan audit dan monitoring, konferensi dalam negeri, dan penugasan lainnya.",
+            "3. a. Dalam upaya mendukung efektivitas dan efisiensi pelaksanaan tugas, transportasi perjalanan dinas sebaiknya dengan menggunakan moda transportasi udara (pesawat) kelas ekonomi, moda transportasi darat (kereta api) maksimal kelas eksekutif. Apabila moda transportasi pesawat dan kereta api tidak tersedia, perjalanan dinas dapat dilakukan dengan menggunakan moda transportasi darat dan/atau moda transportasi air yang aman dan nyaman. b. Penugasan yang sifatnya mendadak yang menyebabkan ketidaktersediaan tiket sesuai kelas sehingga harga tiket melebihi tarif maksimal diwajibkan melampirkan surat keterangan. a. Biaya tiket pesawat (moda transportasi udara) dan tiket dan/atau sewa kendaraan darat/air (moda transportasi darat/air) dari D.I. Yogyakarta atau DKI Jakarta ke daerah (kota) tujuan pergi-pulang menjadi beban anggaran unit, fakultas, sekolah, atau kantor pusat sebesar biaya yang sesungguhnya terjadi (at cost) dengan jumlah maksimal sebesar pagu yang telah ditetapkan. b. Tiket perjalanan dinas khusus mengundang tamu dari luar kota mengacu pada tarif zona kota asal. c. Tiket perjalanan dinas khusus dengan tujuan DKI Jakarta dapat lebih tinggi sebesar 40% (empat puluh persen) dari tarif. a. Uang Harian perjalanan dinas dalam negeri dapat digunakan untuk kebutuhan makan dan transport lokal dalam kota tujuan. b. Uang Harian diberikan secara lumpsum dengan jangka waktu paling lama 6 (enam) hari kecuali untuk kegiatan penelitian per perjalanan dinas dan dihitung berdasarkan jumlah hari perjalanan dinas sejak berangkat dari tempat asal sampai dengan kembali lagi ke tempat asal dikalikan tarif uang harian yang sesuai kota tujuan perjalanan dinas. Kegiatan KKN di daerah pedalaman uang harian diberikan secara lumpsum dengan jangka waktu paling lama 8 (delapan) hari. c. Apabila perjalanan dinas dilakukan dengan tujuan mengikuti kegiatan pendidikan dan/atau pelatihan yang diselenggarakan oleh pihak lain secara institusional, maka uang| harian dapat diberikan:",
+            "1. paling banyak 50% (lima puluh persen) jika seluruh penginapan dan akomodasi selama kegiatan ditanggung oleh penyelenggara: atau",
+            "2. paling banyak 75% (tujuh puluh lima persen) jika penginapan tidak ditanggung oleh penyelenggara dari jumlah perhitungan uang harian. d. Apabila perjalanan dinas dilakukan dengan tujuan mengikuti kegiatan pendidikan dan/atau pelatihan selama lebih dari 6 (enam) hari, yang diselenggarakan oleh pihak lain secara institusional dan pembiayaannya tidak ditanggung oleh pihak penyelenggara atau pihak sponsor, maka dapat diberikan Uang Harian paling banyak 40% (empat puluh persen) dari tarif, sampai selesai acara. e. Apabila uang harian sudah diberikan oleh pihak penyelenggara dengan nilai lebih rendah dari Standar Biaya Universitas, maka dapat diberikan selisih kekurangannya dari nilai batas Standar Biaya Universitas. Biaya penginapan atau hotel di kota tujuan menjadi beban anggaran unit, fakultas, sekolah, atau kantor pusat sebesar biaya yang sesungguhnya terjadi (at cost) dengan jumlah maksimal sebesar pagu yang telah ditetapkan. Dalam hal pihak yang melakukan perjalanan dinas menginap di tempat yang tidak ada biayanya (gratis), seperti di rumah saudara atau di wisma milik Universitas, maka kepada yang bersangkutan dapat diberi biaya penginapan maksimal sebesar 30% (tiga puluh persen) dari pagu yang telah ditetapkan dan sebesar 60% (enam puluh persen) untuk kegiatan KKN.",
+            "7. Uang transport diberikan secara lumpsum per kegiatan perjalanan dinas dan digunakan untuk membiayai transportasi dari rumah ke bandara/stasiun dan dari bandara/stasiun ke tempat tujuan, dan sebaliknya. Apabila: a. kegiatan perjalanan dinas ke lebih dari satu tujuan, maka biaya transportasi dari tujuan pertama ke tujuan kedua dan seterusnya akan diperhitungkan secara at cost berdasarkan bukti pengeluaran. b. dalam hal perjalanan dinas yang tidak melewati bandara/stasiun dan menggunakan kendaraan pribadi maka uang transport dapat diberikan sesuai tarif di atas, apabila perjalanan dinas menggunakan kendaraan dinas, maka tidak berhak mendapatkan uang transport. 8 [Narasumber/Dosen/Peneliti/Praktisi/Tamu dapat diberikan salah satu antara honorarium atau uang harian. ———————— 9 [Besaran komponen perjalanan dinas dalam negeri untuk pihak eksternal, disetarakan dengan tingkat jabatan di UGM. |",
+            "10. Dalam hal terjadi pembatalan pelaksanaan perjalanan dinas, biaya pembatalan dapat dibebankan pada anggaran unit kerja yang bersangkutan jika pembatalan itu dilakukan oleh pemberi tugas dan/atau bersifat darurat dan/atau tak terduga dengan surat pembatalan yang disetujui pemberi tugas.",
+            "11. Untuk perjalanan dinas yang dilaksanakan ke 3 (tiga) tempat tujuan atau lebih dalam satu kota dan/atau dalam 1 (satu) hari, dapat diberikan Uang Transport paling banyak 1,5 (satu koma lima) dari tarif yang ada. 12 Pelaksanaan dan Pertanggungjawaban Perjalanan Dinas Dalam Negeri | | A [Perjalanan dinas mengikuti konferensi /seminar/ workshop / simposium dan sejenisnya dalam negeri |",
+            "1. Perjalanan dinas konferensi dalam negeri hanya dapat diberikan pada dosen tetap yang mempresentasikan makalah hasil penelitiannya (penulis utama atau penulis pendamping) di Konferensi Dalam Negeri terindeks SCOPUS atau dikategorikan bereputasi sesuai keputusan Departemen/Fakultas/Sekolah, dengan bukti surat (email ...@ugm.ac.id) penerimaan makalah oleh panitia konferensi dan pada makalah disebutkan bahwa pemakalah adalah dosen UGM. 2 (Jumlah hari perjalanan dinas konferensi/seminar/ workshop /simposium dan sejenisnya dalam negeri maksimal adalah jumlah hari konferensi plus 1 (satu) hari tetapi tidak boleh lebih dari 6 (enam) hari.",
+            "3. Biaya pendaftaran konferensi dan biaya tiket pesawat kelas ekonomi atau tiket transportasi darat dan/atau laut akan menjadi beban anggaran fakultas/sekolah atau Universitas sebesar biaya yang sesungguhnya terjadi (at cost)."
+          ]
+        },
+        {
+          "id": "sbu-dn-4",
+          "heading": "Tabel SBU — bagian 4",
+          "figure": {
+            "src": "/pedoman-perjadin/SBU%20Perjadin4.png",
+            "alt": "Tabel SBU perjadin dalam negeri bagian 4",
+            "caption": "SBU Perjadin Dalam Negeri — lampiran 4."
+          },
+          "ocrText": "Dalam 1 (satu) tahun anggaran, setiap dosen tetap hanya berhak memperoleh maksimal 2 (dua) kali perjalanan dinas mengikuti konferensi dalam negeri untuk 2 (dua)\nmakalah yang berbeda.\nProsedur pengajuan perjalanan dinas mengikuti konferensi dalam negeri dilakukan dengan mengajukan formulir permohonan yang telah disetujui Kepala Departemen\ndilampiri bukti penerimaan makalah dan fotokopi halaman sampul makalah, kepada Dekanat (jika akan menggunakan anggaran Fakultas atau Sekolah) atau kepada\nWakil Rektor bidang terkait (jika akan menggunakan anggaran Kantor Pusat Universitas).\nDosen tetap yang mengikuti perjalanan dinas konferensi dalam negeri hanya berhak menggunakan 1 (satu) sumber pendanaan. Dosen bersangkutan harus memilih\nsalah satu sumber pendanaan yang akan digunakan jika memiliki kesempatan menggunakan lebih dari 1 (satu) sumber pendanaan.\n\n[I [5 [Ferialanan dinas penugasan kerja, mengikuti, atau menghadiri undangan dari institusi mitra, studi banding, pelatihan, pertandingan, dan/atau kompeten |\n\n1 [Perjalanan dinas menghadiri undangan dari institusi mitra, Kementerian, atau penugasan lain dapat diberikan pada dosen dan tenaga kependidikan (tetap dan tidak\ntetap) serta bukan pegawai berdasarkan undangan resmi dari pejabat institusi mitra dan/atau surat penugasan dari Dekanat atau Rektorat.\n\n2 |Perhitungan jumlah hari perjalanan dinas paling lama adalah jumlah hari acara formal di institusi tempat tujuan ditambah 1 (satu) hari dengan Jumlah hari paling lama\nperjalanan dinas dalam negeri selama 6 (enam) hari. Perhitungan jumlah hari perjalanan dinas untuk kegiatan KKN paling lama 8 (delapan) hari.\n\n3 JProsedur pengajuan Perjalanan Dinas Dalam Negeri dilakukan dengan mengajukan formulir permohonan dilengkapi dengan surat undangan dari institusi mitra dan\nsurat penugasan dari pejabat berwenang, kepada Dekanat (jika akan menggunakan anggaran fakultas atau sekolah) atau kepada Wakil Rektor bidang terkait (jika akan\nmenggunakan anggaran Kantor Pusat UGM). Untuk perjalanan dinas penugasan mengajar, surat penugasan dapat diganti dengan surat penugasan dan/atau jadwal\nmengajar dalam 1 (satu) semester tertentu.\n\nPejabat, dosen tetap, dan tenaga kependidikan (tetap dan tidak tetap) yang mengikuti Perjalanan Dinas Dalam Negeri hanya berhak menggunakan 1 (satu) sumber\npendanaan. Pejabat bersangkutan harus memilih salah satu sumber pendanaan yang akan digunakan (yang paling menguntungkan bagi UGM) jika memiliki\nkesempatan menggunakan lebih dari 1 (satu) sumber pendanaan.\n\n[I [|  JPerjalanan Dinas Mahasiswa |\n\n1 Perjalanan dinas mahasiswa adalah penugasan kepada mahasiswa untuk menghadiri undangan kegiatan dari institusi mitra, mewakili Universitas untuk mengikuti\nlomba atau pertandingan, atau penugasan lain bagi mahasiswa aktif Universitas.\n\n2 |Penugasan mahasiswa dapat berasal dari Universitas langsung ke mahasiswa atau berdasarkan permohonan dari mahasiswa. Mahasiswa dapat mengajukan surat\npermohonan penugasan ke Universitas yang berisi jenis kegiatan yang akan diikuti dan rincian kebutuhan biayanya ke Wakil Dekan yang membidangi Pendidikan dan\nKemahasiswaan atau Direktur yang membidangi kemahasiswaan dilengkapi dengan berkas-berkas terkait kegiatan yang akan diikuti.\n\n|\ndiajukan mahasiswa akan digunakan sebagai dasar pengeluaran biaya perjalanan dinas mahasiswa sekaligus sebagai dokumen pertanggungjawaban.\nMahasiswa yang melakukan perjalanan dinas berhak memperoleh: (1). Biaya transportasi (tiket) sebesar biaya sesungguhnya (af cost); (2). Uang hotel sebesar biaya\nsesungguhnya (at cost) dengan ketentuan maksimal hotel bintang 3 (tiga) dan minimal 1 (satu) kamar untuk 2 (dua) orang: dan (3). Uang harian dan uang transport\ndapat diberikan sebesar 50% (lima puluh persen) dari tarif yang sudah ditetapkan.\n\n[| | D [Perjalanan dinas untuk tanggap bencana atau situasi kedaruratan |\n\n5 eh\nmahasiswa.\n\n2 |Perhitungan jumlah hari perjalanan dinas paling lama untuk tanggap bencana atau situasi kedaruratan adalah paling lama 2 (dua) dikali jumlah hari perjalanan dinas\ndalam negeri atau 2 (dua) dikali 6 (enam) hari.\n\nTT Beer a nn bera sr to ST dem emg pean dean dem en |\nDekan (jika akan menggunakan anggaran fakultas atau sekolah) atau Wakil Rektor yang membidangi (jika akan menggunakan anggaran Kantor Pusat UGM).",
+          "body": "Berikut 4 butir ketentuan hasil transkrip OCR. Verifikasi dengan PDF SBU resmi.",
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          },
+          "points": [
+            "2. Perhitungan jumlah hari perjalanan dinas paling lama adalah jumlah hari acara formal di institusi tempat tujuan ditambah 1 (satu) hari dengan Jumlah hari paling lama perjalanan dinas dalam negeri selama 6 (enam) hari. Perhitungan jumlah hari perjalanan dinas untuk kegiatan KKN paling lama 8 (delapan) hari.",
+            "3. Prosedur pengajuan Perjalanan Dinas Dalam Negeri dilakukan dengan mengajukan formulir permohonan dilengkapi dengan surat undangan dari institusi mitra dan surat penugasan dari pejabat berwenang, kepada Dekanat (jika akan menggunakan anggaran fakultas atau sekolah) atau kepada Wakil Rektor bidang terkait (jika akan menggunakan anggaran Kantor Pusat UGM). Untuk perjalanan dinas penugasan mengajar, surat penugasan dapat diganti dengan surat penugasan dan/atau jadwal mengajar dalam 1 (satu) semester tertentu. Pejabat, dosen tetap, dan tenaga kependidikan (tetap dan tidak tetap) yang mengikuti Perjalanan Dinas Dalam Negeri hanya berhak menggunakan 1 (satu) sumber pendanaan. Pejabat bersangkutan harus memilih salah satu sumber pendanaan yang akan digunakan (yang paling menguntungkan bagi UGM) jika memiliki kesempatan menggunakan lebih dari 1 (satu) sumber pendanaan. I [| JPerjalanan Dinas Mahasiswa | 1 Perjalanan dinas mahasiswa adalah penugasan kepada mahasiswa untuk menghadiri undangan kegiatan dari institusi mitra, mewakili Universitas untuk mengikuti lomba atau pertandingan, atau penugasan lain bagi mahasiswa aktif Universitas.",
+            "2. Penugasan mahasiswa dapat berasal dari Universitas langsung ke mahasiswa atau berdasarkan permohonan dari mahasiswa. Mahasiswa dapat mengajukan surat permohonan penugasan ke Universitas yang berisi jenis kegiatan yang akan diikuti dan rincian kebutuhan biayanya ke Wakil Dekan yang membidangi Pendidikan dan Kemahasiswaan atau Direktur yang membidangi kemahasiswaan dilengkapi dengan berkas-berkas terkait kegiatan yang akan diikuti. diajukan mahasiswa akan digunakan sebagai dasar pengeluaran biaya perjalanan dinas mahasiswa sekaligus sebagai dokumen pertanggungjawaban. Mahasiswa yang melakukan perjalanan dinas berhak memperoleh: (1). Biaya transportasi (tiket) sebesar biaya sesungguhnya (af cost); (2). Uang hotel sebesar biaya sesungguhnya (at cost) dengan ketentuan maksimal hotel bintang 3 (tiga) dan minimal 1 (satu) kamar untuk 2 (dua) orang: dan (3). Uang harian dan uang transport dapat diberikan sebesar 50% (lima puluh persen) dari tarif yang sudah ditetapkan. | D [Perjalanan dinas untuk tanggap bencana atau situasi kedaruratan | 5 eh mahasiswa.",
+            "2. Perhitungan jumlah hari perjalanan dinas paling lama untuk tanggap bencana atau situasi kedaruratan adalah paling lama 2 (dua) dikali jumlah hari perjalanan dinas dalam negeri atau 2 (dua) dikali 6 (enam) hari. TT Beer a nn bera sr to ST dem emg pean dean dem en | Dekan (jika akan menggunakan anggaran fakultas atau sekolah) atau Wakil Rektor yang membidangi (jika akan menggunakan anggaran Kantor Pusat UGM)."
+          ]
+        },
+        {
+          "id": "catatan-dn",
+          "heading": "Catatan penerapan dalam negeri",
+          "points": [
+            "Uang harian dibayarkan lumpsum; tidak perlu bukti pengeluaran harian per item.",
+            "Biaya hotel dibayarkan sesuai bukti riil, tidak melebihi batas SBU untuk eselon/golongan dan provinsi tujuan.",
+            "Perjadin dalam kota > 8 jam atau diklat dapat memiliki besaran uang harian berbeda—cek tabel SBU.",
+            "Terapkan kebijakan efisiensi internal (mis. 50%) saat menyusun usulan anggaran."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        }
+      ]
+    },
+    {
+      "id": "sbu-luar-negeri",
+      "title": "SBU & Ketentuan Perjadin Luar Negeri",
+      "description": "PDLN — uang harian, penginapan, dan ketentuan khusus.",
+      "badge": "PDLN",
+      "gradient": "from-violet-500 to-purple-600",
+      "sections": [
+        {
+          "id": "ringkasan-ln",
+          "heading": "Komponen biaya luar negeri",
+          "body": "Perjalanan dinas luar negeri (PDLN) umumnya meliputi uang harian per kelompok negara/golongan, batas penginapan, tiket pesawat kelas tertentu, serta biaya pendukung (visa, paspor, asuransi, vaksin, dan representasi jika diatur).",
+          "callout": {
+            "type": "warning",
+            "title": "Efisiensi PDLN",
+            "body": "Terapkan efisiensi hingga 70% dan lakukan seleksi ketat: pastikan tidak dapat digantikan pertemuan virtual, perjalanan digabung (routing), dan durasi minimum yang memadai."
+          }
+        },
+        {
+          "id": "pdl-1",
+          "heading": "Ketentuan & tabel PDLN — bagian 1",
+          "figure": {
+            "src": "/pedoman-perjadin/PDLN1.png",
+            "alt": "Ketentuan perjalanan dinas luar negeri bagian 1",
+            "caption": "PDLN — lampiran ketentuan dan/atau tabel SBU bagian 1."
+          },
+          "ocrText": "y Ny Pagu Biaya\nHE Ee) ER\nI Ch NN N= A” NN I\nI CE cl Ii A A me SA\n\nJabatan Non-Manajerial\nCC RZ = ICY NC” I\nDokumen ini telah ditandatangani secara elektronik menggunakan sertifikat elektronik yang diterbitkan oleh BSIE.\nTEE TEE Ti FEE CI PET BEE ETS ET ET:\nhalaman 12 dari 56\nCE [ewe [we ey\nJabatan Non-Manajerial\nSE i NN I= I sej\nI i I\" I= NN IE\nPratama\nI ee MG. I NE BEN\nJabatan Non-Manajerial\n[ IKeterangan: 000000 |\n\n1 [Klasifikasi Kategori Tujuan adalah penggolongan kategori negara tujuan yang didasarkan pada rata rata indeks kebutuhan biaya hidup dan/atau indeks kemahalan umum\n\nnegara itu.\n\nPenggolongan kategori meliputi:\n\n“ Zona 1 yaitu negara-negara di Benua Amerika, Eropa, Australia, serta negara Korea, Jepang, Selandia Baru dan Singapura;\n“ Zona 2 yaitu negara-negara di Benua Afrika, Asia (di luar negara-negara ASEAN, Jepang, dan Korea)\n\n“ Zona 3 yaitu negara-negara di wilayah ASEAN selain Singapura.\n\n2 Ja. Tiket perjalanan dinas luar negeri adalah tiket kelas ekonomi. Tiket kelas bisnis hanya diperuntukan bagi Pejabat dengan Jabatan Manajerial Jenjang Eksekutif Utama dan\nMadya dengan lama penerbangan lebih dari 5 (lima) jam. Biaya tiket perjalanan dinas luar negeri akan dibebankan pada anggaran Universitas, Fakultas, Sekolah, dan/atau\nunit lain sebesar biaya yang sesungguhnya terjadi (at cost) dengan batas atas sesuai pagu biaya.\n\nb. Tiket perjalanan dinas khusus mengundang tamu dari luar negeri mengacu pada tarif zona negara asal.\n\n3 |Uang Harian Perjalanan Dinas diberikan secara lumpsum dengan perhitungan jumlah hari perjalanan dinas dikalikan satuan uang harian. Jumlah hari Perjalanan Dinas Luar]\nNegeri dihitung mulai hari keberangkatan dari kota asal (Yogyakarta atau Jakarta) sampai dengan hari kepulangan sampai kota asal kembali. Uang harian lumpsum bersifat\nall-inclusive untuk digunakan sebagai uang makan, transportasi lokal, dan kebutuhan lainnya serta tidak dipotong PPh 21.\n\nBiaya penginapan perjalanan dinas luar negeri akan dibebankan pada anggaran Universitas, Fakultas, Sekolah, dan/atau unit lain sebesar biaya yang sesungguhnya terjadi\n(at cost) dengan batas atas sesuai pagu biaya.\n(—— |PENJELASAN PERJALANAN DINAS LUAR NEGERI |\n\n1 JPerjalanan Dinas Luar Negeri meliputi semua penugasan institusional ke luar negara Indonesia yang meliputi, tetapi tidak terbatas pada: mengikuti konferensi internasional,\ntugas menjalin kerja sama, pelaksanaan tugas terkait dengan Kementerian dan/atau unit pemerintah lainnya, menghadiri undangan institusional, mengikuti pelatihan,\npenugasan mengajar, penugasan penelitian, dan penugasan lainnya.\n\n2 [Perjalanan Dinas Luar Negeri bagi Narasumber/Dosen/Peneliti/Praktisi/ Tamu dari Luar Negeri meliputi semua penugasan institusional dari luar negeri ke Indonesia yang\nmeliputi, tetapi tidak terbatas pada: mengikuti konferensi internasional, tugas menjalin kerja sama, pelaksanaan tugas terkait dengan Kementerian dan/atau unit pemerintah\nlainnya, menghadiri undangan institusional, mengikuti pelatihan, penugasan mengajar, penugasan penelitian, dan penugasan lainnya.\n\n[| 3 [Narasumber/Dosen/Peneliti/Praktisi/Tamu dapat diberikan salah satu antara honorarium atau uang harian. —\n[| + [Pclaksanaan dan pertanggungjawaban Perjalanan Dinas Luar Negeri: ~~ |\n| | A TPerjalanan dinas mengikuti konferensiinternasional |\n\n1 [Perjalanan dinas konferensi internasional hanya dapat diberikan pada dosen tetap (ASN atau Non-ASN) yang mempresentasikan makalah hasil penelitiannya (penulis\nutama atau penulis pendamping) di Konferensi Internasional terindeks SCOPUS atau dikategorikan bereputasi sesuai keputusan Departemen/Fakultas/Sekolah, dengan\nbukti surat (email ..@ugm.ac.id) penerimaan makalah oleh panitia konferensi dan pada makalah disebutkan bahwa pemakalah adalah dosen UGM.\n\ndd Ienan sa amber pendanaan yang akan digunakan jika meri kesempaian menggunakan ein ds 1 bar) Sumber pendanaan. > = \"|\nsalah satu sumber pendanaan yang akan digunakan jika memiliki kesempatan menggunakan lebih dari 1 (satu) sumber pendanaan.\n[| © [Ferjalanan dinas penugasan kerja, mengikuti atau menghadiri undangan dari institusi mitra, studi banding, pelatihan, pertandingan, dan/atau kompersi |\n\n1 JPerjalanan dinas menghadiri undangan dari institusi mitra luar negeri hanya dapat diberikan pada dosen tetap dan/atau tenaga pendidikan (Tetap dan Tidak Tetap) dan\npegawai dengan perjanjian kerja berdasarkan undangan resmi dari pejabat institusi mitra luar negeri dan surat penugasan dari Dekanat atau Rektorat, dengan jumlah\nhari perjalanan paling lama 7 (tujuh) hari.\n\n2 |Perhitungan jumlah hari perjalanan dinas maksimal adalah jumlah hari acara formal di institusi mitra luar negeri plus 1 (satu) hari jika tempat institusi mitra dapat\nditempuh dalam waktu penerbangan paling lama 7 (tujuh) jam atau jumlah hari acara formal di institusi mitra plus 2 (dua) hari jika tempat institusi mitra ditempuh\ndalam waktu penerbangan lebih dari 7 (tujuh) jam.\n\n3 |Biaya pengurusan visa negara institusi mitra dan biaya tiket pesawat kelas sesuai jabatan akan menjadi beban anggaran fakultas/ sekolah atau Universitas sebesar\nbiaya yang sesungguhnya terjadi (at cost). Apabila dalam pengurusan visa memerlukan perjalanan dinas ke Kedutaan Besar negara tempat institusi mitra, biaya\nperjalanan dinas mengacu pada aturan Perjalanan Dinas Dalam Negeri.\n\nDalam 1 (satu) tahun anggaran setiap pejabat, dosen dan/atau tenaga kependidikan tetap hanya berhak melaksanakan Perjalanan Dinas Luar Negeri paling banyak 8\n(delapan) kali bagi pejabat dengan Jabatan Manajerial Jenjang Eksekutif Utama dan Madya, 4 (empat) kali bagi pejabat dengan Jabatan Manajerial Jenjang Eksekutif\nPratama, 3 (tiga) kali bagi pejabat dengan Jabatan Manajerial Jenjang Manajer, dan 2 (dua) kali bagi Jabatan Non-Manajerial.",
+          "body": "Berikut 6 butir ketentuan hasil transkrip OCR. Verifikasi dengan PDF SBU resmi.",
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          },
+          "points": [
+            "2. a. Tiket perjalanan dinas luar negeri adalah tiket kelas ekonomi. Tiket kelas bisnis hanya diperuntukan bagi Pejabat dengan Jabatan Manajerial Jenjang Eksekutif Utama dan Madya dengan lama penerbangan lebih dari 5 (lima) jam. Biaya tiket perjalanan dinas luar negeri akan dibebankan pada anggaran Universitas, Fakultas, Sekolah, dan/atau unit lain sebesar biaya yang sesungguhnya terjadi (at cost) dengan batas atas sesuai pagu biaya. b. Tiket perjalanan dinas khusus mengundang tamu dari luar negeri mengacu pada tarif zona negara asal.",
+            "3. Uang Harian Perjalanan Dinas diberikan secara lumpsum dengan perhitungan jumlah hari perjalanan dinas dikalikan satuan uang harian. Jumlah hari Perjalanan Dinas Luar] Negeri dihitung mulai hari keberangkatan dari kota asal (Yogyakarta atau Jakarta) sampai dengan hari kepulangan sampai kota asal kembali. Uang harian lumpsum bersifat all-inclusive untuk digunakan sebagai uang makan, transportasi lokal, dan kebutuhan lainnya serta tidak dipotong PPh 21. Biaya penginapan perjalanan dinas luar negeri akan dibebankan pada anggaran Universitas, Fakultas, Sekolah, dan/atau unit lain sebesar biaya yang sesungguhnya terjadi (at cost) dengan batas atas sesuai pagu biaya. (—— |PENJELASAN PERJALANAN DINAS LUAR NEGERI |",
+            "1. Perjalanan Dinas Luar Negeri meliputi semua penugasan institusional ke luar negara Indonesia yang meliputi, tetapi tidak terbatas pada: mengikuti konferensi internasional, tugas menjalin kerja sama, pelaksanaan tugas terkait dengan Kementerian dan/atau unit pemerintah lainnya, menghadiri undangan institusional, mengikuti pelatihan, penugasan mengajar, penugasan penelitian, dan penugasan lainnya. 2 [Perjalanan Dinas Luar Negeri bagi Narasumber/Dosen/Peneliti/Praktisi/ Tamu dari Luar Negeri meliputi semua penugasan institusional dari luar negeri ke Indonesia yang meliputi, tetapi tidak terbatas pada: mengikuti konferensi internasional, tugas menjalin kerja sama, pelaksanaan tugas terkait dengan Kementerian dan/atau unit pemerintah lainnya, menghadiri undangan institusional, mengikuti pelatihan, penugasan mengajar, penugasan penelitian, dan penugasan lainnya. 3 [Narasumber/Dosen/Peneliti/Praktisi/Tamu dapat diberikan salah satu antara honorarium atau uang harian. — + [Pclaksanaan dan pertanggungjawaban Perjalanan Dinas Luar Negeri: | | A TPerjalanan dinas mengikuti konferensiinternasional | 1 [Perjalanan dinas konferensi internasional hanya dapat diberikan pada dosen tetap (ASN atau Non-ASN) yang mempresentasikan makalah hasil penelitiannya (penulis utama atau penulis pendamping) di Konferensi Internasional terindeks SCOPUS atau dikategorikan bereputasi sesuai keputusan Departemen/Fakultas/Sekolah, dengan bukti surat (email ..@ugm.ac.id) penerimaan makalah oleh panitia konferensi dan pada makalah disebutkan bahwa pemakalah adalah dosen UGM. dd Ienan sa amber pendanaan yang akan digunakan jika meri kesempaian menggunakan ein ds 1 bar) Sumber pendanaan. > = \"| salah satu sumber pendanaan yang akan digunakan jika memiliki kesempatan menggunakan lebih dari 1 (satu) sumber pendanaan. © [Ferjalanan dinas penugasan kerja, mengikuti atau menghadiri undangan dari institusi mitra, studi banding, pelatihan, pertandingan, dan/atau kompersi |",
+            "1. Perjalanan dinas menghadiri undangan dari institusi mitra luar negeri hanya dapat diberikan pada dosen tetap dan/atau tenaga pendidikan (Tetap dan Tidak Tetap) dan pegawai dengan perjanjian kerja berdasarkan undangan resmi dari pejabat institusi mitra luar negeri dan surat penugasan dari Dekanat atau Rektorat, dengan jumlah hari perjalanan paling lama 7 (tujuh) hari.",
+            "2. Perhitungan jumlah hari perjalanan dinas maksimal adalah jumlah hari acara formal di institusi mitra luar negeri plus 1 (satu) hari jika tempat institusi mitra dapat ditempuh dalam waktu penerbangan paling lama 7 (tujuh) jam atau jumlah hari acara formal di institusi mitra plus 2 (dua) hari jika tempat institusi mitra ditempuh dalam waktu penerbangan lebih dari 7 (tujuh) jam.",
+            "3. Biaya pengurusan visa negara institusi mitra dan biaya tiket pesawat kelas sesuai jabatan akan menjadi beban anggaran fakultas/ sekolah atau Universitas sebesar biaya yang sesungguhnya terjadi (at cost). Apabila dalam pengurusan visa memerlukan perjalanan dinas ke Kedutaan Besar negara tempat institusi mitra, biaya perjalanan dinas mengacu pada aturan Perjalanan Dinas Dalam Negeri. Dalam 1 (satu) tahun anggaran setiap pejabat, dosen dan/atau tenaga kependidikan tetap hanya berhak melaksanakan Perjalanan Dinas Luar Negeri paling banyak 8 (delapan) kali bagi pejabat dengan Jabatan Manajerial Jenjang Eksekutif Utama dan Madya, 4 (empat) kali bagi pejabat dengan Jabatan Manajerial Jenjang Eksekutif Pratama, 3 (tiga) kali bagi pejabat dengan Jabatan Manajerial Jenjang Manajer, dan 2 (dua) kali bagi Jabatan Non-Manajerial."
+          ]
+        },
+        {
+          "id": "pdl-2",
+          "heading": "Ketentuan & tabel PDLN — bagian 2",
+          "figure": {
+            "src": "/pedoman-perjadin/PDLN2.png",
+            "alt": "Ketentuan perjalanan dinas luar negeri bagian 2",
+            "caption": "PDLN — lampiran ketentuan dan/atau tabel SBU bagian 2."
+          },
+          "ocrText": "Jika ada penawaran pembiayaan Perjalanan Dinas Luar Negeri dari institusi mitra pengundang, maka pejabat, dosen tetap, dan tenaga kependidikan yang mengikuti\nperjalanan dinas ke institusi mitra luar negeri disarankan untuk menggunakan sumber pendanaan yang ditawarkan tersebut. Apabila sumber pendanaan yang\nditawarkan dari luar UGM lebih kecil daripada standar biaya umum UGM, maka yang bersangkutan berhak untuk memperoleh tambahan pendanaan dari sumber UGM\nsebesar selisihnya.\n\n| | ¢ [Kegiatan Oleh Mahasiswa |\n\n1 [Perjalanan dinas mahasiswa adalah penugasan kepada mahasiswa untuk menghadiri undangan kegiatan dari institusi mitra, mewakili UGM untuk mengikuti lomba\natau pertandingan, atau penugasan lain bagi mahasiswa aktif.\n\n2 (Penugasan mahasiswa dapat berasal dari UGM langsung ke mahasiswa atau berdasarkan permohonan dari mahasiswa. Mahasiswa dapat mengajukan surat\npermohonan penugasan ke UGM yang berisi jenis kegiatan yang akan diikuti dan rincian kebutuhan biayanya ke Wakil Dekan yang membidangi pendidikan dan\nkemahasiswaan atau Direktur yang membidangi kemahasiswaan dilengkapi dengan berkas-berkas terkait kegiatan yang akan diikuti.\n\n3 [Surat persetujuan Wakil Dekan yang membidangi akademik atau Direktur yang membidangi kemahasiswaan dilampiri dengan dokumen yang diajukan mahasiswa akan\ndigunakan sebagai dasar pengeluaran biaya perjalanan dinas mahasiswa sekaligus sebagai dokumen pertanggungjawaban.\n\nMahasiswa yang melakukan perjalanan dinas berhak memperoleh: (1). Biaya tiket sebesar biaya sesungguhnya (at cost): (2). Uang hotel sebesar biaya sesungguhnya (at\ncost) dengan ketentuan maksimal hotel bintang 3 (tiga) dan minimal 1 (satu) kamar untuk 2 (dua) orang; dan (3). Uang harian sebesar 50% (lima puluh persen) dari tarif\nang sudah ditetapkan.",
+          "body": "Ketentuan dari dokumen resmi — lihat lampiran gambar.",
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        },
+        {
+          "id": "checklist-pdln",
+          "heading": "Checklist khusus luar negeri",
+          "points": [
+            "Pastikan masa berlaku paspor dan persyaratan visa negara tujuan/transit.",
+            "Asuransi perjalanan dan protokol kesehatan (jika diwajibkan).",
+            "Konversi mata uang dan bukti pembayaran sesuai ketentuan bendahara.",
+            "Laporan hasil perjadin dalam bahasa Indonesia (atau sesuai format unit kerja).",
+            "Simpan itinerary, boarding pass, dan bukti akomodasi untuk audit."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        }
+      ]
+    },
+    {
+      "id": "checklist-sekretaris",
+      "title": "Checklist Sekretaris Pimpinan",
+      "description": "Alur singkat sebelum, selama, dan setelah perjadin.",
+      "badge": "Praktis",
+      "gradient": "from-sky-500 to-cyan-500",
+      "sections": [
+        {
+          "id": "sebelum",
+          "heading": "Sebelum keberangkatan",
+          "points": [
+            "Cocokkan jadwal pimpinan dan pastikan surat tugas sudah ditandatangani.",
+            "Hitung estimasi biaya per komponen SBU + kebijakan efisiensi.",
+            "Koordinasikan tiket, hotel, dan transport (gunakan travel policy universitas).",
+            "Siapkan dokumen pendukung rapat/konferensi di tujuan."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        },
+        {
+          "id": "selama",
+          "heading": "Selama perjadin",
+          "points": [
+            "Pantau perubahan jadwal dan dokumentasikan perubahan biaya jika ada.",
+            "Simpan bukti pengeluaran at cost (hotel, taksi resmi, dll.).",
+            "Catat poin penting untuk laporan dan tindak lanjut (CTA) pasca perjadin."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        },
+        {
+          "id": "sesudah",
+          "heading": "Setelah kembali",
+          "points": [
+            "Kumpulkan LPJ sesuai tenggat unit keuangan.",
+            "Distribusikan notulen/ringkasan hasil ke pemangku kepentingan.",
+            "Buat tindak lanjut di AURA (Monitoring TL) bila ada keputusan rapat.",
+            "Arsipkan surat tugas, bukti biaya, dan laporan di sistem dokumen."
+          ],
+          "callout": {
+            "type": "info",
+            "title": "Transkrip OCR",
+            "body": "Data teks/tabel dihasilkan otomatis dari screenshot SBU. Selalu cocokkan dengan dokumen resmi sebelum dipakai untuk pengajuan."
+          }
+        },
+        {
+          "id": "pembaruan-sbu",
+          "heading": "Kapan pedoman ini diperbarui?",
+          "body": "Setiap kali universitas menerbitkan SBU atau surat edaran baru, admin dapat memperbarui file scripts/perjadin-guidelines-content.json lalu menjalankan npm run db:seed-perjadin-guidelines. Konten di dashboard akan mengikuti versi aktif di database.",
+          "callout": {
+            "type": "info",
+            "title": "Pembaruan konten",
+            "body": "Struktur JSON mendukung penambahan bab, tabel teks, gambar, dan callout tanpa mengubah kode UI—cukup validasi schema dan seed ulang."
+          }
+        }
+      ]
+    }
+  ]
+}

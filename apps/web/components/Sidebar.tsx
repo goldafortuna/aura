@@ -13,6 +13,7 @@ import {
   BookOpen,
   ListChecks,
   GraduationCap,
+  Plane,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SignOutButton } from '@clerk/nextjs';
@@ -37,6 +38,7 @@ const menuItems = [
   { id: 'tasks', label: 'Manajemen Tugas', icon: CheckSquare },
   { id: 'cta-dashboard', label: 'Monitoring TL', icon: ListChecks },
   { id: 'academy', label: 'Academy', icon: BookOpen },
+  { id: 'pedoman-perjadin', label: 'Pedoman Perjadin', icon: Plane },
   { id: 'reminders', label: 'WA Template', icon: MessageSquare },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; icon: React.ElementType; href?: string }>;
 
