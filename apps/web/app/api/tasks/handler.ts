@@ -9,7 +9,8 @@ import { extractVisualDocumentTextWithAi } from '../../../lib/extractVisualDocum
 import { internalServerError } from '../../../lib/httpErrors';
 import { requireSecretary } from '../../../lib/middleware/auth';
 import { removeObjects, uploadObject } from '../../../lib/objectStorage';
-import { createSmtpTransport, resolveStoredSmtpConfig } from '../../../lib/smtpEmail';
+import { resolveStoredSmtpConfig } from '../../../lib/smtpEmail';
+import { sendTransactionalEmail } from '../../../lib/transactionalEmail';
 import { validateUploadedFile } from '../../../lib/utils/fileValidation';
 
 const app = new Hono();
@@ -27,6 +28,7 @@ const TRAVEL_CHECKLIST_ITEMS = [
   { label: 'SPPD/Laporan Perjalanan Dinas', isRequired: false },
   { label: 'Voucher/Invoice Hotel', isRequired: false },
   { label: 'Surat Keterangan', isRequired: false },
+  { label: 'Bukti Pembayaran', isRequired: false },
 ] as const;
 
 type TaskStatusValue = 'todo' | 'in-progress' | 'completed';
@@ -134,6 +136,21 @@ function classifyChecklistLabel(params: { filename: string; text?: string | null
     hasAll('itinerary', 'flight')
   ) {
     return 'E-Ticket';
+  }
+
+  if (
+    hasAny(
+      'bukti pembayaran',
+      'bukti bayar',
+      'payment proof',
+      'slip pembayaran',
+      'bukti transfer',
+      'struk pembayaran',
+      'proof of payment',
+    ) ||
+    hasAll('bukti', 'pembayaran')
+  ) {
+    return 'Bukti Pembayaran';
   }
 
   if (
@@ -467,10 +484,15 @@ function serializeTasks(input: {
   });
 }
 
+const sendToFinanceSchema = z.object({
+  uraian: z.string().trim().min(1, 'Uraian email wajib diisi.'),
+});
+
 function buildFinanceEmailHtml(payload: {
   title: string;
   description: string | null;
   dueDate: string | null;
+  uraian: string;
   checklistItems: Array<{
     label: string;
     attachments: Array<{ filename: string }>;
@@ -499,9 +521,13 @@ function buildFinanceEmailHtml(payload: {
           <p style="margin:0 0 16px;font-size:14px;line-height:1.7;">
             Tugas <strong>${escapeHtml(payload.title)}</strong> telah dilengkapi dokumen yang diperlukan dan dikirimkan untuk tindak lanjut bagian keuangan.
           </p>
+          <div style="margin:0 0 16px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+            <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Uraian</p>
+            <p style="margin:0;font-size:14px;line-height:1.7;color:#334155;white-space:pre-wrap;">${escapeHtml(payload.uraian)}</p>
+          </div>
           ${
             payload.description
-              ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#475569;">${escapeHtml(payload.description)}</p>`
+              ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#475569;">Catatan tugas: ${escapeHtml(payload.description)}</p>`
               : ''
           }
           ${
@@ -530,6 +556,13 @@ app.get('/', async (c) => {
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   try {
+    const travelTasks = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(eq(tasks.userId, dbUser.id), eq(tasks.kind, TRAVEL_ACCOUNTABILITY_KIND)));
+
+    await Promise.all(travelTasks.map((task) => ensureTravelChecklist(task.id)));
+
     const graph = await loadTaskGraph(dbUser.id);
     return c.json({ data: serializeTasks(graph) });
   } catch (error) {
@@ -963,6 +996,13 @@ app.post('/:id/send-to-finance', async (c) => {
     return c.json({ error: 'Minimal satu dokumen perlu diunggah sebelum dikirim ke keuangan.' }, 400);
   }
 
+  let emailBody: z.infer<typeof sendToFinanceSchema>;
+  try {
+    emailBody = sendToFinanceSchema.parse(await c.req.json());
+  } catch {
+    return c.json({ error: 'Uraian email wajib diisi.' }, 400);
+  }
+
   const [emailCfg] = await db
     .select()
     .from(emailConfigs)
@@ -970,7 +1010,7 @@ app.post('/:id/send-to-finance', async (c) => {
     .limit(1);
 
   if (!emailCfg) {
-    return c.json({ error: 'Konfigurasi email SMTP belum diatur. Buka Pengaturan -> Email.' }, 400);
+    return c.json({ error: 'Konfigurasi email belum diatur. Buka Pengaturan -> Email.' }, 400);
   }
 
   const smtpConfig = resolveStoredSmtpConfig(emailCfg, decrypt);
@@ -988,32 +1028,31 @@ app.post('/:id/send-to-finance', async (c) => {
     ),
   );
 
-  const transporter = createSmtpTransport(smtpConfig);
-
   try {
-    await transporter.sendMail({
-      from: `"${smtpConfig.fromName}" <${smtpConfig.fromAddress}>`,
+    await sendTransactionalEmail({
+      config: smtpConfig,
       to: serialized.financePicEmail,
       subject: `Dokumen pertanggungjawaban siap diproses - ${serialized.title}`,
       html: buildFinanceEmailHtml({
         title: serialized.title,
         description: serialized.description,
         dueDate: serialized.dueDate,
+        uraian: emailBody.uraian,
         checklistItems: serialized.checklistItems.map((item) => ({
           label: item.label,
           attachments: item.attachments.map((attachment) => ({ filename: attachment.filename })),
         })),
       }),
-      text: `Dokumen pertanggungjawaban untuk tugas "${serialized.title}" telah lengkap dan siap diproses.`,
+      text: `Dokumen pertanggungjawaban untuk tugas "${serialized.title}" telah lengkap dan siap diproses.\n\nUraian:\n${emailBody.uraian}`,
       attachments: attachmentsForEmail,
     });
   } catch (error) {
-    return internalServerError(
-      c,
-      'tasks/send-to-finance',
-      error,
-      'Gagal mengirim email ke PIC keuangan.',
-    );
+    const message =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : 'Gagal mengirim email ke PIC keuangan.';
+    console.error('[tasks/send-to-finance]', error);
+    return c.json({ error: message }, 400);
   }
 
   await db

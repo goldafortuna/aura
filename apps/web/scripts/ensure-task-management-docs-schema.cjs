@@ -70,6 +70,7 @@ async function main() {
     { label: 'SPPD/Laporan Perjalanan Dinas', isRequired: false, sortOrder: 4 },
     { label: 'Voucher/Invoice Hotel', isRequired: false, sortOrder: 5 },
     { label: 'Surat Keterangan', isRequired: false, sortOrder: 6 },
+    { label: 'Bukti Pembayaran', isRequired: false, sortOrder: 7 },
   ];
 
   const travelTasks = await sql`

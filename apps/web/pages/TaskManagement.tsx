@@ -712,7 +712,7 @@ function TaskModal({
                     </div>
                     <div className="mt-4 rounded-xl border border-dashed border-sky-200 bg-white/70 px-4 py-4 text-sm text-sky-800">
                       Checklist default akan dibuat untuk Surat Tugas, E-Ticket, Invoice, Boarding Pass, SPPD/Laporan
-                      Perjalanan Dinas, Voucher/Invoice Hotel, dan Surat Keterangan. Semua kategori bersifat opsional, setiap kategori
+                      Perjalanan Dinas, Voucher/Invoice Hotel, Surat Keterangan, dan Bukti Pembayaran. Semua kategori bersifat opsional, setiap kategori
                       dapat diisi lebih dari satu dokumen, dan upload bisa dilakukan bertahap dari detail task.
                     </div>
                     {mode === 'edit' && task ? (
@@ -770,7 +770,7 @@ type DocumentManagerModalProps = {
   autoDetectSummary: string | null;
   autoDetectMatches: AutoDetectMatch[];
   autoDetectUnmatched: string[];
-  onSendToFinance: () => void;
+  onRequestSendToFinance: () => void;
   sendingToFinance: boolean;
 };
 
@@ -789,7 +789,7 @@ function DocumentManagerModal({
   autoDetectSummary,
   autoDetectMatches,
   autoDetectUnmatched,
-  onSendToFinance,
+  onRequestSendToFinance,
   sendingToFinance,
 }: DocumentManagerModalProps) {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -1139,7 +1139,7 @@ function DocumentManagerModal({
                   </p>
                   <button
                     type="button"
-                    onClick={onSendToFinance}
+                    onClick={onRequestSendToFinance}
                     disabled={!canSendToFinance || sendingToFinance}
                     className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                   >
@@ -1283,10 +1283,10 @@ function DocumentManagerModal({
                     dan PDF scan yang tidak mengandung teks bawaan, sistem juga akan mencoba OCR lewat provider AI
                     yang aktif. Jika OCR gagal atau provider belum mendukung vision/file input, sistem akan fallback ke
                     heuristik nama file. Dokumen opsional seperti SPPD/Laporan Perjalanan Dinas, Voucher/Invoice
-                    Hotel, dan Surat Keterangan tidak wajib ada, tetapi bisa diunggah bila memang diperlukan. Upload manual per item tetap
+                    Hotel, Surat Keterangan, dan Bukti Pembayaran tidak wajib ada, tetapi bisa diunggah bila memang diperlukan. Upload manual per item tetap
                     disediakan untuk koreksi akhir. Contoh yang mudah dikenali:
                     <br />
-                    `surat-tugas.pdf`, `eticket-jakarta.pdf`, `invoice-hotel.pdf`, `boarding-pass.jpg`, `sppd.pdf`, `voucher-hotel.pdf`, `surat-keterangan.pdf`.
+                    `surat-tugas.pdf`, `eticket-jakarta.pdf`, `invoice-hotel.pdf`, `boarding-pass.jpg`, `sppd.pdf`, `voucher-hotel.pdf`, `surat-keterangan.pdf`, `bukti-pembayaran.pdf`.
                   </p>
                 </div>
               </div>
@@ -1294,6 +1294,106 @@ function DocumentManagerModal({
           </div>
         </motion.div>
       </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function SendToFinanceModal({
+  open,
+  uraian,
+  onUraianChange,
+  onConfirm,
+  onClose,
+  loading,
+  financePicEmail,
+  isResend,
+}: {
+  open: boolean;
+  uraian: string;
+  onUraianChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+  loading: boolean;
+  financePicEmail: string | null;
+  isResend: boolean;
+}) {
+  const canSubmit = uraian.trim().length > 0;
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !loading) onClose();
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {isResend ? 'Kirim Ulang ke Keuangan' : 'Kirim ke Keuangan'}
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  Tambahkan uraian untuk badan email sebelum dikirim ke {financePicEmail ?? 'PIC keuangan'}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <label className="mb-1.5 block text-xs font-semibold text-gray-600">Uraian Email *</label>
+              <textarea
+                value={uraian}
+                onChange={(e) => onUraianChange(e.target.value)}
+                rows={6}
+                placeholder="Contoh: Berikut kami sampaikan kelengkapan dokumen pertanggungjawaban perjalanan dinas ke Jakarta pada tanggal 5-7 Juni 2026. Mohon dapat diproses sesuai ketentuan yang berlaku."
+                disabled={loading}
+                className="w-full resize-y rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none transition-shadow focus:border-primary-400 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                Uraian ini akan ditampilkan di badan email bersama daftar dokumen terlampir.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={!canSubmit || loading}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {loading ? 'Mengirim...' : 'Kirim Email'}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
     </AnimatePresence>
   );
 }
@@ -1401,6 +1501,8 @@ export const TaskManagement: React.FC = () => {
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [movingAttachmentId, setMovingAttachmentId] = useState<string | null>(null);
   const [sendingToFinance, setSendingToFinance] = useState(false);
+  const [showSendToFinanceModal, setShowSendToFinanceModal] = useState(false);
+  const [emailUraian, setEmailUraian] = useState('');
   const [autoClassifying, setAutoClassifying] = useState(false);
   const [autoDetectSummary, setAutoDetectSummary] = useState<string | null>(null);
   const [autoDetectMatches, setAutoDetectMatches] = useState<AutoDetectMatch[]>([]);
@@ -1562,10 +1664,23 @@ export const TaskManagement: React.FC = () => {
     setDeletingAttachmentId(null);
     setMovingAttachmentId(null);
     setSendingToFinance(false);
+    setShowSendToFinanceModal(false);
+    setEmailUraian('');
     setAutoClassifying(false);
     setAutoDetectSummary(null);
     setAutoDetectMatches([]);
     setAutoDetectUnmatched([]);
+  };
+
+  const openSendToFinanceModal = () => {
+    setEmailUraian('');
+    setShowSendToFinanceModal(true);
+  };
+
+  const closeSendToFinanceModal = () => {
+    if (sendingToFinance) return;
+    setShowSendToFinanceModal(false);
+    setEmailUraian('');
   };
 
   const upsertTaskInState = (nextTask: ApiTask) => {
@@ -1736,15 +1851,26 @@ export const TaskManagement: React.FC = () => {
 
   const handleSendToFinance = async () => {
     if (!documentTaskId) return;
+
+    const uraian = emailUraian.trim();
+    if (!uraian) {
+      pushToast('error', 'Uraian email wajib diisi.');
+      return;
+    }
+
     try {
       setSendingToFinance(true);
       const res = await fetch(`/api/tasks/${documentTaskId}/send-to-finance`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uraian }),
       });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal mengirim ke PIC keuangan.'));
       const json = (await res.json()) as { data: ApiTask };
       upsertTaskInState(json.data);
       if (editingId === json.data.id) syncFormWithTask(json.data);
+      setShowSendToFinanceModal(false);
+      setEmailUraian('');
       pushToast('success', 'Dokumen berhasil dikirim ke PIC keuangan.');
     } catch (err) {
       pushToast('error', err instanceof Error ? err.message : 'Terjadi kesalahan.');
@@ -2042,8 +2168,19 @@ export const TaskManagement: React.FC = () => {
         autoDetectSummary={autoDetectSummary}
         autoDetectMatches={autoDetectMatches}
         autoDetectUnmatched={autoDetectUnmatched}
-        onSendToFinance={() => void handleSendToFinance()}
+        onRequestSendToFinance={openSendToFinanceModal}
         sendingToFinance={sendingToFinance}
+      />
+
+      <SendToFinanceModal
+        open={showSendToFinanceModal}
+        uraian={emailUraian}
+        onUraianChange={setEmailUraian}
+        onConfirm={() => void handleSendToFinance()}
+        onClose={closeSendToFinanceModal}
+        loading={sendingToFinance}
+        financePicEmail={documentTask?.financePicEmail ?? null}
+        isResend={!!documentTask?.financeEmailSentAt}
       />
 
       <DeleteModal

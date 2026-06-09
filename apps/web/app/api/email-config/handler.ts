@@ -9,8 +9,8 @@ import {
   maskSecret,
   type SmtpConfigInput,
   type SmtpProvider,
-  verifySmtpConfig,
 } from '../../../lib/smtpEmail';
+import { verifyEmailConfig } from '../../../lib/transactionalEmail';
 
 const app = new Hono();
 
@@ -26,6 +26,29 @@ const emailConfigSchema = z.object({
   fromAddress: z.string().email(),
   fromName: z.string().min(1).default('Sekretariat'),
 });
+
+const resendVerifySchema = z.object({
+  provider: z.literal('resend'),
+  smtpPassword: z.string().min(8),
+});
+
+const resendEmailConfigSchema = z.object({
+  provider: z.literal('resend'),
+  smtpPassword: z.string().min(8).optional(),
+  fromAddress: z.string().email(),
+  fromName: z.string().min(1).default('Sekretariat'),
+  smtpHost: z.string().optional(),
+  smtpPort: z.coerce.number().int().positive().optional(),
+  smtpSecure: z.coerce.boolean().optional(),
+  smtpUsername: z.string().optional(),
+});
+
+const RESEND_DEFAULTS = {
+  smtpHost: 'smtp.resend.com',
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUsername: 'resend',
+} as const;
 
 function toResponseConfig(cfg: typeof emailConfigs.$inferSelect) {
   const decryptedLegacyPassword = decrypt(cfg.gmailAppPassword);
@@ -63,21 +86,39 @@ app.put('/', async (c) => {
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
-  const parsed = emailConfigSchema.safeParse(body);
-  if (!parsed.success) return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
-
   const [existing] = await db
     .select()
     .from(emailConfigs)
     .where(eq(emailConfigs.userId, dbUser.id))
     .limit(1);
 
+  const resendParsed = resendEmailConfigSchema.safeParse(body);
+  const parsed = resendParsed.success
+    ? {
+        success: true as const,
+        data: {
+          provider: 'resend' as const,
+          smtpHost: resendParsed.data.smtpHost?.trim() || RESEND_DEFAULTS.smtpHost,
+          smtpPort: resendParsed.data.smtpPort ?? RESEND_DEFAULTS.smtpPort,
+          smtpSecure: resendParsed.data.smtpSecure ?? RESEND_DEFAULTS.smtpSecure,
+          smtpUsername: resendParsed.data.smtpUsername?.trim() || RESEND_DEFAULTS.smtpUsername,
+          smtpPassword: resendParsed.data.smtpPassword,
+          fromAddress: resendParsed.data.fromAddress,
+          fromName: resendParsed.data.fromName,
+        },
+      }
+    : emailConfigSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 400);
+  }
+
   const password =
     parsed.data.smtpPassword?.trim() ||
     (existing?.smtpPassword ? decrypt(existing.smtpPassword) : existing ? decrypt(existing.gmailAppPassword) : '');
 
   if (!password) {
-    return c.json({ error: 'Password SMTP wajib diisi.' }, 400);
+    return c.json({ error: parsed.data.provider === 'resend' ? 'Resend API key wajib diisi.' : 'Password SMTP wajib diisi.' }, 400);
   }
 
   const normalized = toStoredConfig(parsed.data, password);
@@ -103,14 +144,45 @@ app.post('/verify', async (c) => {
   if (!dbUser) return c.json({ error: 'Unauthorized' }, 401);
 
   const body = await c.req.json();
-  const parsed = emailConfigSchema.safeParse(body);
-  if (!parsed.success || !parsed.data.smtpPassword) {
-    return c.json({ error: 'Validation failed', details: parsed.success ? undefined : parsed.error.flatten() }, 400);
-  }
 
   try {
-    await verifySmtpConfig(toRuntimeConfig(parsed.data, parsed.data.smtpPassword));
-    return c.json({ data: { ok: true, message: 'Koneksi SMTP berhasil terverifikasi.' } });
+    const resendParsed = resendVerifySchema.safeParse(body);
+    if (resendParsed.success) {
+      await verifyEmailConfig({
+        provider: 'resend',
+        smtpHost: 'smtp.resend.com',
+        smtpPort: 465,
+        smtpSecure: true,
+        smtpUsername: 'resend',
+        smtpPassword: resendParsed.data.smtpPassword,
+        fromAddress: 'notifikasi@example.com',
+        fromName: 'Sekretariat',
+      });
+      return c.json({
+        data: {
+          ok: true,
+          message:
+            'Resend API key valid (akses kirim email). Verifikasi pengiriman akan dilakukan saat email pertama dikirim.',
+        },
+      });
+    }
+
+    const parsed = emailConfigSchema.safeParse(body);
+    if (!parsed.success || !parsed.data.smtpPassword) {
+      return c.json({ error: 'Validation failed', details: parsed.success ? undefined : parsed.error.flatten() }, 400);
+    }
+
+    const runtimeConfig = toRuntimeConfig(parsed.data, parsed.data.smtpPassword);
+    await verifyEmailConfig(runtimeConfig);
+    return c.json({
+      data: {
+        ok: true,
+        message:
+          runtimeConfig.provider === 'resend'
+            ? 'Koneksi Resend API berhasil terverifikasi.'
+            : 'Koneksi SMTP berhasil terverifikasi.',
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Verifikasi gagal.';
     return c.json({ error: msg }, 400);

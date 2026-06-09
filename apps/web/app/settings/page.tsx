@@ -126,8 +126,8 @@ const SMTP_PROVIDER_PRESETS: Record<SmtpProvider, {
     smtpUsername: '',
   },
   resend: {
-    label: 'Resend SMTP',
-    description: 'Paling cocok untuk aplikasi, dengan API key sebagai password SMTP.',
+    label: 'Resend API',
+    description: 'Disarankan untuk aplikasi. Pengiriman memakai Resend API; simpan API key di field password.',
     smtpHost: 'smtp.resend.com',
     smtpPort: 465,
     smtpSecure: true,
@@ -571,11 +571,12 @@ export default function SettingsPage() {
       const json = (await res.json()) as { data: EmailConfigRow };
       setEmailCfg(json.data);
       if (json.data) {
+        const preset = SMTP_PROVIDER_PRESETS[json.data.provider];
         setSmtpProvider(json.data.provider);
-        setSmtpHost(json.data.smtpHost);
-        setSmtpPort(String(json.data.smtpPort));
-        setSmtpSecure(Boolean(json.data.smtpSecure));
-        setSmtpUsername(json.data.smtpUsername);
+        setSmtpHost(json.data.smtpHost || preset.smtpHost);
+        setSmtpPort(String(json.data.smtpPort || preset.smtpPort));
+        setSmtpSecure(json.data.smtpHost ? Boolean(json.data.smtpSecure) : preset.smtpSecure);
+        setSmtpUsername(json.data.smtpUsername || preset.smtpUsername);
         setFromAddress(json.data.fromAddress);
         setFromName(json.data.fromName);
         setGmailAppPwd('');
@@ -597,24 +598,37 @@ export default function SettingsPage() {
   }, [activeTab, canUseSecretarySettings, loadEmailConfig]);
 
   const saveEmailConfig = async () => {
-    if (!smtpHost.trim()) { setError('SMTP host wajib diisi.'); return; }
-    if (!smtpPort.trim() || Number.isNaN(Number(smtpPort)) || Number(smtpPort) <= 0) { setError('SMTP port tidak valid.'); return; }
-    if (!smtpUsername.trim()) { setError('SMTP username wajib diisi.'); return; }
+    if (smtpProvider !== 'resend') {
+      if (!smtpHost.trim()) { setError('SMTP host wajib diisi.'); return; }
+      if (!smtpPort.trim() || Number.isNaN(Number(smtpPort)) || Number(smtpPort) <= 0) { setError('SMTP port tidak valid.'); return; }
+      if (!smtpUsername.trim()) { setError('SMTP username wajib diisi.'); return; }
+    }
     if (!fromAddress.trim()) { setError('From address wajib diisi.'); return; }
-    if (!gmailAppPwd.trim() && !emailCfg) { setError('SMTP password wajib diisi.'); return; }
+    if (!gmailAppPwd.trim() && !emailCfg) {
+      setError(smtpProvider === 'resend' ? 'Resend API key wajib diisi.' : 'SMTP password wajib diisi.');
+      return;
+    }
     setEmailSaving(true);
     setError(null);
     setEmailVerifyResult(null);
     try {
-      const body: Record<string, string | number | boolean> = {
-        provider: smtpProvider,
-        smtpHost: smtpHost.trim(),
-        smtpPort: Number(smtpPort),
-        smtpSecure,
-        smtpUsername: smtpUsername.trim(),
-        fromAddress: fromAddress.trim(),
-        fromName: fromName.trim() || 'Sekretariat',
-      };
+      const preset = SMTP_PROVIDER_PRESETS[smtpProvider];
+      const body: Record<string, string | number | boolean> =
+        smtpProvider === 'resend'
+          ? {
+              provider: smtpProvider,
+              fromAddress: fromAddress.trim(),
+              fromName: fromName.trim() || 'Sekretariat',
+            }
+          : {
+              provider: smtpProvider,
+              smtpHost: smtpHost.trim() || preset.smtpHost,
+              smtpPort: Number(smtpPort) || preset.smtpPort,
+              smtpSecure,
+              smtpUsername: smtpUsername.trim() || preset.smtpUsername,
+              fromAddress: fromAddress.trim(),
+              fromName: fromName.trim() || 'Sekretariat',
+            };
       if (gmailAppPwd.trim()) body.smtpPassword = gmailAppPwd.trim();
       const res = await fetch('/api/email-config', {
         method: 'PUT',
@@ -633,26 +647,40 @@ export default function SettingsPage() {
   };
 
   const verifyEmailConfig = async () => {
-    if (!smtpHost.trim() || !smtpPort.trim() || !smtpUsername.trim() || !fromAddress.trim() || !gmailAppPwd.trim()) {
-      setError('Lengkapi SMTP host, port, username, from address, dan password untuk verifikasi.'); return;
+    if (smtpProvider === 'resend') {
+      if (!gmailAppPwd.trim()) {
+        setError('Resend API key wajib diisi untuk verifikasi.');
+        return;
+      }
+    } else if (!smtpHost.trim() || !smtpPort.trim() || !smtpUsername.trim() || !fromAddress.trim() || !gmailAppPwd.trim()) {
+      setError('Lengkapi SMTP host, port, username, from address, dan password untuk verifikasi.');
+      return;
     }
     setEmailVerifying(true);
     setEmailVerifyResult(null);
     setError(null);
     try {
+      const verifyBody =
+        smtpProvider === 'resend'
+          ? {
+              provider: 'resend',
+              smtpPassword: gmailAppPwd.trim(),
+            }
+          : {
+              provider: smtpProvider,
+              smtpHost: smtpHost.trim(),
+              smtpPort: Number(smtpPort),
+              smtpSecure,
+              smtpUsername: smtpUsername.trim(),
+              smtpPassword: gmailAppPwd.trim(),
+              fromAddress: fromAddress.trim(),
+              fromName,
+            };
+
       const res = await fetch('/api/email-config/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: smtpProvider,
-          smtpHost: smtpHost.trim(),
-          smtpPort: Number(smtpPort),
-          smtpSecure,
-          smtpUsername: smtpUsername.trim(),
-          smtpPassword: gmailAppPwd.trim(),
-          fromAddress: fromAddress.trim(),
-          fromName,
-        }),
+        body: JSON.stringify(verifyBody),
       });
       if (!res.ok) {
         const msg = await readApiErrorMessage(res, 'Verifikasi gagal');
@@ -1827,8 +1855,8 @@ export default function SettingsPage() {
           >
             <SectionCard
               icon={<Mail className="h-5 w-5" />}
-              title="Konfigurasi Email SMTP"
-              description="Atur provider email pengirim untuk notula, reminder, dan pengiriman dokumen. Resend disediakan sebagai preset, tetapi SMTP lain juga didukung."
+              title="Konfigurasi Email"
+              description="Atur provider email pengirim untuk notula, reminder, dan pengiriman dokumen perjadin. Resend API disarankan; Gmail dan SMTP custom tetap didukung."
             >
               {emailLoading ? (
                 <div className="space-y-3">
@@ -1847,16 +1875,16 @@ export default function SettingsPage() {
                   )}
 
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="mb-1 text-xs font-semibold text-amber-800">Preset yang disarankan: Resend</p>
+                    <p className="mb-1 text-xs font-semibold text-amber-800">Preset yang disarankan: Resend API</p>
                     <p className="text-xs text-amber-700">
-                      Gunakan `smtp.resend.com`, username `resend`, dan API key Resend sebagai password SMTP.
-                      Jika kelak pindah ke provider lain, cukup ganti host, port, username, dan password tanpa ubah kode.
+                      Isi API key Resend (`re_...`) pada field password. Pastikan domain pengirim sudah diverifikasi di dashboard Resend.
+                      Untuk Gmail atau SMTP custom, pilih provider lain lalu sesuaikan host, port, username, dan password.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label className="block">
-                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">Provider SMTP</span>
+                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">Provider Email</span>
                       <select
                         value={smtpProvider}
                         onChange={(e) => applySmtpPreset(e.target.value as SmtpProvider)}
@@ -1874,24 +1902,32 @@ export default function SettingsPage() {
                       onChange={setFromName}
                       placeholder="Sekretariat Rapim"
                     />
-                    <FormInput
-                      label="SMTP Host *"
-                      value={smtpHost}
-                      onChange={setSmtpHost}
-                      placeholder="smtp.resend.com"
-                    />
-                    <FormInput
-                      label="SMTP Port *"
-                      value={smtpPort}
-                      onChange={setSmtpPort}
-                      placeholder="465"
-                    />
-                    <FormInput
-                      label="SMTP Username *"
-                      value={smtpUsername}
-                      onChange={setSmtpUsername}
-                      placeholder={smtpProvider === 'resend' ? 'resend' : 'username SMTP'}
-                    />
+                    {smtpProvider !== 'resend' ? (
+                      <>
+                        <FormInput
+                          label="SMTP Host *"
+                          value={smtpHost}
+                          onChange={setSmtpHost}
+                          placeholder="smtp.gmail.com"
+                        />
+                        <FormInput
+                          label="SMTP Port *"
+                          value={smtpPort}
+                          onChange={setSmtpPort}
+                          placeholder="587"
+                        />
+                        <FormInput
+                          label="SMTP Username *"
+                          value={smtpUsername}
+                          onChange={setSmtpUsername}
+                          placeholder="username SMTP"
+                        />
+                      </>
+                    ) : (
+                      <div className="rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs leading-relaxed text-sky-800 md:col-span-2">
+                        Provider Resend mengirim email lewat Resend API. Field host, port, dan username SMTP tidak diperlukan untuk pengiriman.
+                      </div>
+                    )}
                     <FormInput
                       label="From Address *"
                       value={fromAddress}
@@ -1899,20 +1935,24 @@ export default function SettingsPage() {
                       placeholder={smtpProvider === 'gmail' ? 'sekretaris@gmail.com' : 'notifikasi@domainanda.com'}
                       type="email"
                     />
-                    <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 md:col-span-2">
-                      <input
-                        type="checkbox"
-                        checked={smtpSecure}
-                        onChange={(e) => setSmtpSecure(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">Gunakan koneksi secure</p>
-                        <p className="text-xs text-gray-500">Untuk Resend umumnya aktif di port 465. Untuk Gmail biasanya non-secure di port 587 lalu upgrade via STARTTLS.</p>
-                      </div>
-                    </label>
+                    {smtpProvider !== 'resend' ? (
+                      <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 md:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={smtpSecure}
+                          onChange={(e) => setSmtpSecure(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">Gunakan koneksi secure</p>
+                          <p className="text-xs text-gray-500">Untuk Gmail biasanya non-secure di port 587 lalu upgrade via STARTTLS.</p>
+                        </div>
+                      </label>
+                    ) : null}
                     <label className="block md:col-span-2">
-                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">SMTP Password / API Key *</span>
+                      <span className="mb-1.5 block text-xs font-semibold text-gray-600">
+                        {smtpProvider === 'resend' ? 'Resend API Key *' : 'SMTP Password *'}
+                      </span>
                       <div className="relative">
                         <input
                           type={showPwd ? 'text' : 'password'}
@@ -1929,11 +1969,13 @@ export default function SettingsPage() {
                           {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      {emailCfg && (
+                      {emailCfg ? (
                         <p className="mt-1 text-xs text-gray-400">
-                          API key tersimpan sebagai {emailCfg.smtpPassword}. Isi hanya jika ingin mengganti password SMTP atau API key.
+                          {emailCfg.smtpPassword
+                            ? `${smtpProvider === 'resend' ? 'API key' : 'Password SMTP'} tersimpan sebagai ${emailCfg.smtpPassword}. Isi field ini hanya jika ingin mengganti.`
+                            : `${smtpProvider === 'resend' ? 'API key' : 'Password SMTP'} belum tersimpan. Isi field ini lalu klik Simpan Konfigurasi.`}
                         </p>
-                      )}
+                      ) : null}
                     </label>
                   </div>
 
@@ -1948,7 +1990,13 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => void verifyEmailConfig()}
-                      disabled={emailVerifying || !smtpHost || !smtpPort || !smtpUsername || !fromAddress || !gmailAppPwd}
+                      disabled={
+                        emailVerifying ||
+                        !gmailAppPwd ||
+                        (smtpProvider === 'resend'
+                          ? false
+                          : !smtpHost || !smtpPort || !smtpUsername || !fromAddress)
+                      }
                       className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
                       {emailVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

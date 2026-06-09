@@ -1,5 +1,5 @@
-import nodemailer from 'nodemailer';
 import type { EmailConfig } from '../db/schema';
+import { sendTransactionalEmail, verifyEmailConfig } from './transactionalEmail';
 
 export type SmtpProvider = 'gmail' | 'resend' | 'custom';
 
@@ -61,38 +61,22 @@ export function resolveStoredSmtpConfig(
 }
 
 export async function verifySmtpConfig(config: SmtpConfigInput): Promise<void> {
-  const transporter = createSmtpTransport(config);
-  await transporter.verify();
+  await verifyEmailConfig(config);
 }
 
 export async function sendNotulaEmail(payload: NotulaEmailPayload): Promise<void> {
-  const transporter = createSmtpTransport(payload.from);
   const html = buildHtmlBody(payload);
-  const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
 
-  await transporter.sendMail({
-    from: `"${payload.from.fromName}" <${payload.from.fromAddress}>`,
-    to: toAddresses.join(', '),
+  await sendTransactionalEmail({
+    config: payload.from,
+    to: payload.to,
     subject: payload.subject,
     html,
     text: `Notula Rapat: ${payload.notula.title}\nTanggal: ${payload.notula.meetingDate}\n\n${payload.additionalMessage ?? ''}`,
   });
 }
 
-export function createSmtpTransport(config: SmtpConfigInput) {
-  return nodemailer.createTransport({
-    host: config.smtpHost,
-    port: config.smtpPort,
-    secure: config.smtpSecure,
-    auth: {
-      user: config.smtpUsername,
-      pass: config.smtpPassword,
-    },
-    tls: {
-      rejectUnauthorized: true,
-    },
-  });
-}
+export { createSmtpTransport } from './smtpTransport';
 
 function normalizeProvider(provider: string | null | undefined): SmtpProvider {
   if (provider === 'resend' || provider === 'custom') return provider;
