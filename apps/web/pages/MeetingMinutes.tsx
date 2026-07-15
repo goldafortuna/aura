@@ -523,16 +523,22 @@ export const MeetingMinutes: React.FC = () => {
     setReviewMinute(minute);
     setActiveTab('findings');
     const savedIndices = parseApprovedIndices(minute.approvedFindingsJson);
-    setApprovedSet(new Set(savedIndices));
+    const allFindings = parseFindings(minute.findingsJson);
+    // Jika belum pernah disimpan, pre-select semua temuan agar siap disetujui.
+    setApprovedSet(new Set(savedIndices.length > 0 ? savedIndices : allFindings.map((_, i) => i)));
     setApprovedCtaSet(new Set());
     setCtaLoading(true);
     try {
       const res = await fetch(`/api/meeting-minutes/${minute.id}/ctas`, { cache: 'no-store' });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal memuat tindak lanjut'));
       const json = (await res.json()) as { data: CtaItemRow[] };
-      setReviewCtas(json.data ?? []);
+      const ctas = json.data ?? [];
+      setReviewCtas(ctas);
+      // CTA ikut pre-select agar unduhan memuat keputusan kecuali user membatalkan.
+      setApprovedCtaSet(new Set(ctas.map((c) => c.id)));
     } catch {
       setReviewCtas([]);
+      setApprovedCtaSet(new Set());
     } finally {
       setCtaLoading(false);
     }
@@ -581,17 +587,28 @@ export const MeetingMinutes: React.FC = () => {
         }),
       });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, 'Gagal menyimpan persetujuan'));
-      const json = (await res.json()) as { data: MeetingMinute };
+      const json = (await res.json()) as {
+        data: MeetingMinute;
+        meta?: { replacedCount?: number; ctaInjected?: boolean; warning?: string } | null;
+      };
       setMinutes((prev) => prev.map((m) => m.id === json.data.id ? json.data : m));
       setReviewMinute(json.data);
       const hasCorrected = !!json.data.correctedStoragePath;
       if (!hasCorrected && (approvedSet.size > 0 || approvedCtaSet.size > 0)) {
-        showToast('Persetujuan tersimpan, tetapi file .docx terkoreksi belum berhasil dibuat.', 'err');
+        showToast(
+          json.meta?.warning || 'Persetujuan tersimpan, tetapi file .docx terkoreksi belum berhasil dibuat.',
+          'err',
+        );
         return;
       }
+      if (json.meta?.warning) {
+        showToast(json.meta.warning, 'err');
+        return;
+      }
+      const replaced = json.meta?.replacedCount ?? approvedSet.size;
       showToast(
         hasCorrected
-          ? `Dokumen terkoreksi siap diunduh (${approvedSet.size} perbaikan, ${approvedCtaSet.size} keputusan).`
+          ? `Dokumen terkoreksi siap diunduh (${replaced} perbaikan diterapkan, ${approvedCtaSet.size} keputusan).`
           : 'Persetujuan disimpan.',
         'ok',
       );

@@ -31,6 +31,10 @@ export type ApplyResult = {
   buffer: Buffer;
   mimeType: string;
   filename: string;
+  /** Jumlah penggantian teks (typo/ambigu) yang benar-benar diterapkan. */
+  replacedCount: number;
+  /** Apakah seksi KEPUTUSAN/CTA berhasil disisipkan. */
+  ctaInjected: boolean;
 };
 
 /** Surface PizZip yang dipakai oleh injeksi numbering (hindari `any` tanpa plugin @typescript-eslint). */
@@ -52,6 +56,182 @@ function escapeXml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function unescapeXml(str: string): string {
+  return str
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
+/** Samakan karakter tipikal Word vs teks hasil ekstraksi (mammoth/AI) — penggantian 1:1. */
+function normalizeDocText(value: string): string {
+  return value
+    .replace(/\u00a0/g, ' ')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-');
+}
+
+type WtRun = {
+  start: number;
+  end: number;
+  openTag: string;
+  text: string;
+};
+
+function findWtRuns(xml: string): WtRun[] {
+  const runs: WtRun[] = [];
+  const re = /<w:t(\s[^>]*)?>([^<]*)<\/w:t>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml)) !== null) {
+    runs.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      openTag: `<w:t${match[1] ?? ''}>`,
+      text: unescapeXml(match[2] ?? ''),
+    });
+  }
+  return runs;
+}
+
+function buildWtTag(openTag: string, text: string): string {
+  const escaped = escapeXml(text);
+  const needPreserve =
+    text.startsWith(' ') || text.endsWith(' ') || text.includes('  ') || text.includes('\t');
+  let tag = openTag;
+  if (needPreserve && !/xml:space\s*=/.test(tag)) {
+    tag = tag.replace('<w:t', '<w:t xml:space="preserve"');
+  }
+  return `${tag}${escaped}</w:t>`;
+}
+
+/**
+ * Mencari `needle` di plain text gabungan run, lalu map ke posisi run.
+ * Mendukung exact match + normalisasi karakter Word 1:1 (nbsp, kutip, dash).
+ */
+function locateInRuns(
+  runs: WtRun[],
+  needle: string,
+): { startRun: number; startOff: number; endRun: number; endOff: number } | null {
+  if (!needle || runs.length === 0) return null;
+
+  const plain = runs.map((r) => r.text).join('');
+  let idx = plain.indexOf(needle);
+  let matchLen = needle.length;
+
+  if (idx < 0) {
+    const normPlain = normalizeDocText(plain);
+    const normNeedle = normalizeDocText(needle);
+    // Normalisasi 1:1 → indeks tetap sejajar dengan plain asli.
+    if (normPlain.length === plain.length && normNeedle.length === needle.length) {
+      idx = normPlain.indexOf(normNeedle);
+      matchLen = needle.length;
+    }
+  }
+
+  if (idx < 0) return null;
+  const endIdx = idx + matchLen;
+
+  let charPos = 0;
+  let startRun = -1;
+  let startOff = 0;
+  let endRun = -1;
+  let endOff = 0;
+
+  for (let i = 0; i < runs.length; i++) {
+    const len = runs[i]!.text.length;
+    if (startRun < 0 && charPos + len > idx) {
+      startRun = i;
+      startOff = idx - charPos;
+    }
+    if (startRun >= 0 && charPos + len >= endIdx) {
+      endRun = i;
+      endOff = endIdx - charPos;
+      break;
+    }
+    charPos += len;
+  }
+
+  if (startRun < 0 || endRun < 0) return null;
+  return { startRun, startOff, endRun, endOff };
+}
+
+/**
+ * Ganti satu kemunculan `original` di dalam satu paragraf, termasuk jika teks
+ * terpecah lintas banyak <w:t> (pola tipikal file Word).
+ */
+function replaceOnceInParagraph(paraXml: string, original: string, suggested: string): string | null {
+  const runs = findWtRuns(paraXml);
+  const located = locateInRuns(runs, original);
+  if (!located) return null;
+
+  const { startRun, startOff, endRun, endOff } = located;
+  const newTexts = runs.map((r) => r.text);
+
+  if (startRun === endRun) {
+    const text = newTexts[startRun]!;
+    newTexts[startRun] = text.slice(0, startOff) + suggested + text.slice(endOff);
+  } else {
+    newTexts[startRun] = newTexts[startRun]!.slice(0, startOff) + suggested;
+    for (let i = startRun + 1; i < endRun; i++) newTexts[i] = '';
+    newTexts[endRun] = newTexts[endRun]!.slice(endOff);
+  }
+
+  let result = paraXml;
+  for (let i = runs.length - 1; i >= 0; i--) {
+    const run = runs[i]!;
+    const replacement = buildWtTag(run.openTag, newTexts[i]!);
+    result = result.slice(0, run.start) + replacement + result.slice(run.end);
+  }
+  return result;
+}
+
+/** Terapkan semua findings ke document.xml dengan penggantian lintas-run per paragraf. */
+function applyFindingsToDocumentXml(xml: string, findings: ApprovedFinding[]): { xml: string; replacedCount: number } {
+  let replacedCount = 0;
+  // Proses per <w:p> agar penggantian tidak merusak struktur antar-paragraf.
+  const paraRe = /<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g;
+
+  const nextXml = xml.replace(paraRe, (paraXml) => {
+    let updated = paraXml;
+    for (const finding of findings) {
+      if (!finding.originalText || !finding.suggestedText) continue;
+      if (finding.originalText === finding.suggestedText) continue;
+
+      // Ulangi selama masih ada kemunculan di paragraf ini
+      let guard = 0;
+      while (guard < 20) {
+        guard += 1;
+        const replaced = replaceOnceInParagraph(updated, finding.originalText, finding.suggestedText);
+        if (!replaced) break;
+        updated = replaced;
+        replacedCount += 1;
+      }
+    }
+    return updated;
+  });
+
+  // Fallback: string replace langsung (file sederhana / run tunggal yang lolos normalisasi XML)
+  let finalXml = nextXml;
+  for (const finding of findings) {
+    if (!finding.originalText || !finding.suggestedText) continue;
+    const escapedOrig = escapeXml(finding.originalText);
+    const escapedSugg = escapeXml(finding.suggestedText);
+    if (!escapedOrig || escapedOrig === escapedSugg) continue;
+    if (!finalXml.includes(escapedOrig)) continue;
+    const before = finalXml;
+    finalXml = finalXml.split(escapedOrig).join(escapedSugg);
+    if (finalXml !== before) {
+      const occurrences = before.split(escapedOrig).length - 1;
+      replacedCount += Math.max(0, occurrences);
+    }
+  }
+
+  return { xml: finalXml, replacedCount };
 }
 
 /**
@@ -236,15 +416,13 @@ async function applyToDocx(
 
   let xml = xmlFile.asText();
 
-  // ── 1. Apply typo/ambiguous corrections ────────────────────────────────────
-  for (const finding of findings) {
-    if (!finding.originalText || !finding.suggestedText) continue;
-    const escapedOrig = escapeXml(finding.originalText);
-    const escapedSugg = escapeXml(finding.suggestedText);
-    xml = xml.split(escapedOrig).join(escapedSugg);
-  }
+  // ── 1. Apply typo/ambiguous corrections (lintas <w:t> run) ─────────────────
+  const applied = applyFindingsToDocumentXml(xml, findings);
+  xml = applied.xml;
+  const replacedCount = applied.replacedCount;
 
   // ── 2. Fill KEPUTUSAN section with approved CTA actions ───────────────────
+  let ctaInjected = false;
   if (approvedCtas.length > 0) {
     // Inject a new decimal numbering definition so Word handles "1.", "2.", "3." natively
     const keputusanNumId = injectDecimalNumbering(zip);
@@ -305,13 +483,17 @@ async function applyToDocx(
       const insertAt = xml.lastIndexOf('<w:sectPr');
       if (insertAt >= 0) {
         xml = xml.slice(0, insertAt) + fallbackXml + xml.slice(insertAt);
+        injected = true;
       } else {
         const bodyClose = xml.lastIndexOf('</w:body>');
         if (bodyClose >= 0) {
           xml = xml.slice(0, bodyClose) + fallbackXml + xml.slice(bodyClose);
+          injected = true;
         }
       }
     }
+
+    ctaInjected = injected;
   }
 
   zip.file('word/document.xml', xml);
@@ -327,6 +509,8 @@ async function applyToDocx(
     buffer: correctedBuf,
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     filename: `${stem}_terkoreksi.docx`,
+    replacedCount,
+    ctaInjected,
   };
 }
 
@@ -340,10 +524,14 @@ async function applyToPdf(
 ): Promise<ApplyResult> {
   const parsed = await parsePdfBuffer(Buffer.from(bytes));
   let text: string = parsed.text ?? '';
+  let replacedCount = 0;
 
   for (const finding of findings) {
     if (!finding.originalText || !finding.suggestedText) continue;
+    if (!text.includes(finding.originalText)) continue;
+    const occurrences = text.split(finding.originalText).length - 1;
     text = text.split(finding.originalText).join(finding.suggestedText);
+    replacedCount += Math.max(0, occurrences);
   }
 
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import('docx');
@@ -364,7 +552,8 @@ async function applyToPdf(
     });
 
   // Append KEPUTUSAN section — plain kalimat formal, one paragraph each
-  if (approvedCtas.length > 0) {
+  const ctaInjected = approvedCtas.length > 0;
+  if (ctaInjected) {
     paragraphs.push(new Paragraph({}));
     paragraphs.push(
       new Paragraph({
@@ -389,6 +578,8 @@ async function applyToPdf(
     buffer: correctedBuf,
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     filename: `${stem}_terkoreksi.docx`,
+    replacedCount,
+    ctaInjected,
   };
 }
 

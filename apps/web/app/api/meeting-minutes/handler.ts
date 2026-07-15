@@ -390,6 +390,7 @@ app.post('/:id/approve-findings', async (c) => {
   let correctedStoragePath: string | null = minuteRow.correctedStoragePath ?? null;
   let correctedFilename: string | null = minuteRow.correctedFilename ?? null;
   let correctedAt: Date | null = minuteRow.correctedAt ?? null;
+  let applyMeta: { replacedCount: number; ctaInjected: boolean; warning?: string } | null = null;
 
   const shouldGenerateDoc = approvedFindings.length > 0 || approvedCtaRows.length > 0;
 
@@ -426,8 +427,31 @@ app.post('/:id/approve-findings', async (c) => {
       correctedStoragePath = newPath;
       correctedFilename = result.filename;
       correctedAt = new Date();
+
+      const warnings: string[] = [];
+      if (approvedFindings.length > 0 && result.replacedCount === 0) {
+        warnings.push(
+          'Tidak ada teks perbaikan yang cocok di file asli. Periksa apakah kalimat di temuan masih sama dengan isi dokumen.',
+        );
+      }
+      if (approvedCtaRows.length > 0 && !result.ctaInjected) {
+        warnings.push('Keputusan/CTA tidak berhasil disisipkan ke dokumen.');
+      }
+      applyMeta = {
+        replacedCount: result.replacedCount,
+        ctaInjected: result.ctaInjected,
+        ...(warnings.length > 0 ? { warning: warnings.join(' ') } : {}),
+      };
     } catch (applyErr) {
       console.error('[approve-findings] apply document error:', applyErr);
+      applyMeta = {
+        replacedCount: 0,
+        ctaInjected: false,
+        warning:
+          applyErr instanceof Error
+            ? `Gagal membuat dokumen terkoreksi: ${applyErr.message}`
+            : 'Gagal membuat dokumen terkoreksi.',
+      };
       // Persetujuan tetap disimpan meski pembuatan dokumen gagal
     }
   }
@@ -453,7 +477,7 @@ app.post('/:id/approve-findings', async (c) => {
   const minute = updated;
 
   if (!minute) return c.json({ error: 'Meeting minute not found' }, 404);
-  return c.json({ data: minute });
+  return c.json({ data: minute, meta: applyMeta });
 });
 
 app.get('/:id/download-corrected', async (c) => {
